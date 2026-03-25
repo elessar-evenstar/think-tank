@@ -1,0 +1,1100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Muse Live Viewer — No Build</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #071018;
+      --panel: #101b27;
+      --panel-2: #152435;
+      --border: #24364a;
+      --text: #e6eef8;
+      --muted: #9fb0c3;
+      --accent: #6cc3ff;
+      --accent-2: #8effc1;
+      --danger: #ff7b7b;
+      --warning: #ffd36c;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: radial-gradient(circle at top, #102033 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body { padding: 24px; }
+
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; transform: none; }
+
+    .app-shell {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    .hero, .panel {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    .hero { padding: 24px; }
+    .hero h1 { margin: 0 0 8px; font-size: clamp(2rem, 3vw, 2.8rem); }
+    .hero p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .primary { background: linear-gradient(135deg, var(--accent), #4d9eff); color: #03111d; }
+    .secondary { background: linear-gradient(135deg, #2a3d51, #233447); color: var(--text); }
+    .danger { background: linear-gradient(135deg, #d05a5a, #b74343); color: white; }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+
+    .panel { padding: 18px; }
+    .panel h2, .panel h3 { margin: 0 0 12px; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .metric-label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .metric-value { font-size: 1.25rem; font-weight: 700; }
+    .metric small { display: block; margin-top: 6px; color: var(--muted); }
+
+    .chart-card { display: grid; gap: 12px; }
+
+    .canvas-wrap {
+      background: rgba(4, 10, 16, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 8px;
+    }
+
+    canvas { width: 100%; height: 260px; display: block; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; }
+    .legend-item { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.92rem; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 999px; }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      border-radius: 14px;
+      background: rgba(4, 10, 16, 0.7);
+      border: 1px solid var(--border);
+      color: #d8e6f5;
+      overflow: auto;
+      max-height: 280px;
+      font-size: 0.92rem;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      margin-top: 16px;
+    }
+
+    .status-dot { width: 10px; height: 10px; border-radius: 999px; background: var(--warning); }
+    .status-dot.connected { background: var(--accent-2); }
+    .status-dot.error { background: var(--danger); }
+
+    .note { color: var(--muted); line-height: 1.5; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    @media (max-width: 980px) {
+      .span-8, .span-6, .span-4 { grid-column: span 12; }
+      .metric-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    /*
+      No-build Muse viewer.
+      This file vendors the minimal pieces needed from web-muse so it can be opened directly,
+      with one small fix applied to gyroscope parsing in Muse.gyroscopeData().
+    */
+
+    const EEG_CHANNELS = ["TP9", "AF7", "AF8", "TP10"];
+    const PPG_CHANNELS = ["Ambient", "Infrared", "Red"];
+    const XYZ = ["X", "Y", "Z"];
+    const COLORS = ["#6cc3ff", "#8effc1", "#ffd36c", "#ff8ea1", "#c49dff"];
+    const MAX_POINTS = { eeg: 1000, ppg: 240, accel: 180, gyro: 180 };
+
+    class MuseCircularBuffer {
+      constructor(size) {
+        this.memory = new Array(size);
+        for (let i = 0; i < size; i += 1) this.memory[i] = 0;
+        this.head = 0;
+        this.tail = 0;
+        this.isFull = false;
+        this.lastwrite = 0;
+        this.length = 0;
+      }
+      read() {
+        if (this.tail === this.head && !this.isFull) return null;
+        this.tail = this.next(this.tail);
+        this.isFull = false;
+        this.length -= 1;
+        return this.memory[this.tail];
+      }
+      write(value) {
+        this.lastwrite = Date.now();
+        if (this.isFull) return;
+        this.head = this.next(this.head);
+        this.memory[this.head] = value;
+        if (this.head === this.tail) this.isFull = true;
+        this.length += 1;
+      }
+      next(n) {
+        const nxt = n + 1;
+        return nxt === this.memory.length ? 0 : nxt;
+      }
+    }
+
+    class MuseBase {
+      #SERVICE = 0xfe8d;
+      #CONTROL_CHARACTERISTIC = "273e0001-4c4d-454d-96be-f03bac821358";
+      #BATTERY_CHARACTERISTIC = "273e000b-4c4d-454d-96be-f03bac821358";
+      #GYROSCOPE_CHARACTERISTIC = "273e0009-4c4d-454d-96be-f03bac821358";
+      #ACCELEROMETER_CHARACTERISTIC = "273e000a-4c4d-454d-96be-f03bac821358";
+      #PPG1_CHARACTERISTIC = "273e000f-4c4d-454d-96be-f03bac821358";
+      #PPG2_CHARACTERISTIC = "273e0010-4c4d-454d-96be-f03bac821358";
+      #PPG3_CHARACTERISTIC = "273e0011-4c4d-454d-96be-f03bac821358";
+      #EEG1_CHARACTERISTIC = "273e0003-4c4d-454d-96be-f03bac821358";
+      #EEG2_CHARACTERISTIC = "273e0004-4c4d-454d-96be-f03bac821358";
+      #EEG3_CHARACTERISTIC = "273e0005-4c4d-454d-96be-f03bac821358";
+      #EEG4_CHARACTERISTIC = "273e0006-4c4d-454d-96be-f03bac821358";
+      #EEG5_CHARACTERISTIC = "273e0007-4c4d-454d-96be-f03bac821358";
+      #state = 0;
+      #dev = null;
+      #controlChar = null;
+      #infoFragment = "";
+
+      constructor(options = {}) {
+        if (new.target === MuseBase) throw new TypeError("Cannot construct MuseBase directly");
+        this.mock = options.mock || false;
+        this.mockDataPath = options.mockDataPath || null;
+        this.mockDataIndex = 0;
+        this.mockInterval = null;
+        this.mockData = null;
+      }
+
+      get state() { return this.#state; }
+      batteryData(_event) {}
+      accelerometerData(_event) {}
+      gyroscopeData(_event) {}
+      controlData(_event) {}
+      eegData(_n, _event) {}
+      ppgData(_n, _event) {}
+      disconnected() {}
+
+      #decodeInfo(bytes) {
+        return new TextDecoder().decode(bytes.subarray(1, 1 + bytes[0]));
+      }
+
+      #decodeUnsigned24BitData(samples) {
+        const samples24Bit = [];
+        for (let i = 0; i < samples.length; i += 3) {
+          samples24Bit.push((samples[i] << 16) | (samples[i + 1] << 8) | samples[i + 2]);
+        }
+        return samples24Bit;
+      }
+
+      #decodeUnsigned12BitData(samples) {
+        const samples12Bit = [];
+        for (let i = 0; i < samples.length; i += 1) {
+          if (i % 3 === 0) {
+            samples12Bit.push((samples[i] << 4) | (samples[i + 1] >> 4));
+          } else {
+            samples12Bit.push(((samples[i] & 0x0f) << 8) | samples[i + 1]);
+            i += 1;
+          }
+        }
+        return samples12Bit;
+      }
+
+      #encodeCommand(cmd) {
+        const encoded = new TextEncoder().encode(`X${cmd}\n`);
+        encoded[0] = encoded.length - 1;
+        return encoded;
+      }
+
+      eventBatteryData(event) {
+        let data = event.target.value;
+        data = data.buffer ? data : new DataView(data);
+        return data.getUint16(2) / 512;
+      }
+
+      motionData(dv, scale, ofs) {
+        return [
+          scale * dv.getInt16(ofs),
+          scale * dv.getInt16(ofs + 2),
+          scale * dv.getInt16(ofs + 4),
+        ];
+      }
+
+      eventAccelerometerData(event) {
+        const scale = 0.0000610352;
+        let data = event.target.value;
+        data = data.buffer ? data : new DataView(data);
+        const accelerometer = [[], [], []];
+        for (let ofs = 2; ofs <= 14; ofs += 6) {
+          const vals = this.motionData(data, scale, ofs);
+          accelerometer[0].push(vals[0]);
+          accelerometer[1].push(vals[1]);
+          accelerometer[2].push(vals[2]);
+        }
+        return accelerometer;
+      }
+
+      eventGyroscopeData(event) {
+        const scale = 0.0074768;
+        let data = event.target.value;
+        data = data.buffer ? data : new DataView(data);
+        const gyroscope = [[], [], []];
+        for (let ofs = 2; ofs <= 14; ofs += 6) {
+          const vals = this.motionData(data, scale, ofs);
+          gyroscope[0].push(vals[0]);
+          gyroscope[1].push(vals[1]);
+          gyroscope[2].push(vals[2]);
+        }
+        return gyroscope;
+      }
+
+      eventControlData(event) {
+        let data = event.target.value;
+        data = data.buffer ? data : new DataView(data);
+        const buf = new Uint8Array(data.buffer);
+        const str = this.#decodeInfo(buf);
+        const info = {};
+        for (let i = 0; i < str.length; i += 1) {
+          const c = str[i];
+          this.#infoFragment += c;
+          if (c === "}") {
+            const tmp = JSON.parse(this.#infoFragment);
+            this.#infoFragment = "";
+            Object.assign(info, tmp);
+          }
+        }
+        return info;
+      }
+
+      eventEEGData(event) {
+        let data = event.target.value;
+        data = data.buffer ? data : new DataView(data);
+        return this.#decodeUnsigned12BitData(new Uint8Array(data.buffer).subarray(2));
+      }
+
+      eventPPGData(event) {
+        let data = event.target.value;
+        data = data.buffer ? data : new DataView(data);
+        return this.#decodeUnsigned24BitData(new Uint8Array(data.buffer).subarray(2));
+      }
+
+      async #sendCommand(cmd) {
+        await this.#controlChar.writeValue(this.#encodeCommand(cmd));
+      }
+
+      async #pause() { await this.#sendCommand("h"); }
+      async #resume() { await this.#sendCommand("d"); }
+
+      async #start() {
+        await this.#pause();
+        await this.#sendCommand("p50");
+        await this.#sendCommand("s");
+        await this.#resume();
+      }
+
+      disconnect() {
+        if (this.mock) this.#stopMockDataStream();
+        if (this.#dev) this.#dev.gatt.disconnect();
+        this.#dev = null;
+        this.#state = 0;
+        this.disconnected();
+      }
+
+      async #connectChar(service, cid, hook) {
+        const characteristic = await service.getCharacteristic(cid);
+        characteristic.oncharacteristicvaluechanged = hook;
+        await characteristic.startNotifications();
+        return characteristic;
+      }
+
+      async #loadMockData() {
+        if (!this.mockDataPath) {
+          throw new Error("Mock mode needs a mockDataPath.");
+        }
+        const response = await fetch(this.mockDataPath);
+        const text = await response.text();
+        const lines = text.trim().split("\n");
+        const data = [];
+        for (let i = 1; i < lines.length; i += 1) {
+          const values = lines[i].split(",");
+          if (values.length >= 5) {
+            data.push({
+              timestamp: Number.parseFloat(values[0]),
+              eeg: [
+                Number.parseFloat(values[1]),
+                Number.parseFloat(values[2]),
+                Number.parseFloat(values[3]),
+                Number.parseFloat(values[4]),
+              ],
+            });
+          }
+        }
+        return data;
+      }
+
+      #createMockEEGData(value) {
+        const unsigned12bit = Math.max(0, Math.min(0xfff, Math.round(value / 0.48828125 + 0x800)));
+        const buffer = new ArrayBuffer(20);
+        const view = new DataView(buffer);
+        const uint8 = new Uint8Array(buffer);
+        for (let i = 0; i < 12; i += 1) {
+          const byteOffset = 2 + Math.floor(i * 1.5);
+          if (i % 2 === 0) {
+            uint8[byteOffset] = (unsigned12bit >> 4) & 0xff;
+            uint8[byteOffset + 1] = ((unsigned12bit & 0x0f) << 4) | ((unsigned12bit >> 8) & 0x0f);
+          } else {
+            uint8[byteOffset] = (uint8[byteOffset] & 0xf0) | ((unsigned12bit >> 8) & 0x0f);
+            uint8[byteOffset + 1] = unsigned12bit & 0xff;
+          }
+        }
+        return view;
+      }
+
+      #stopMockDataStream() {
+        if (this.mockInterval) {
+          clearTimeout(this.mockInterval);
+          this.mockInterval = null;
+        }
+      }
+
+      #startMockDataStream() {
+        if (!this.mockData || this.mockData.length === 0) {
+          throw new Error("No mock data available.");
+        }
+        this.mockDataIndex = 0;
+        const feedNextSample = () => {
+          if (!this.mock || this.#state !== 2) return;
+          const currentSample = this.mockData[this.mockDataIndex];
+          const nextIndex = (this.mockDataIndex + 1) % this.mockData.length;
+          const nextSample = this.mockData[nextIndex];
+          let delay = 4;
+          if (currentSample.timestamp && nextSample.timestamp) {
+            delay = nextSample.timestamp - currentSample.timestamp;
+            if (delay < 0) delay = 4;
+          }
+
+          for (let i = 0; i < 4; i += 1) {
+            const mockEvent = { target: { value: this.#createMockEEGData(currentSample.eeg[i]) } };
+            this.eegData(i, mockEvent);
+          }
+
+          if (typeof this.feedMockSensorSample === "function") {
+            this.feedMockSensorSample(currentSample);
+          }
+
+          this.mockDataIndex = nextIndex;
+          this.mockInterval = window.setTimeout(feedNextSample, delay);
+        };
+        feedNextSample();
+      }
+
+      async connect() {
+        if (this.#dev || this.#state !== 0) return;
+        this.#state = 1;
+
+        if (this.mock) {
+          try {
+            this.mockData = await this.#loadMockData();
+            this.#state = 2;
+            this.#startMockDataStream();
+            return;
+          } catch (error) {
+            this.#state = 0;
+            throw error;
+          }
+        }
+
+        try {
+          this.#dev = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [this.#SERVICE] }],
+          });
+        } catch (_error) {
+          this.#dev = null;
+          this.#state = 0;
+          return;
+        }
+
+        let gatt;
+        try {
+          gatt = await this.#dev.gatt.connect();
+        } catch (_error) {
+          this.#dev = null;
+          this.#state = 0;
+          return;
+        }
+
+        const service = await gatt.getPrimaryService(this.#SERVICE);
+        this.#dev.addEventListener("gattserverdisconnected", () => {
+          this.#dev = null;
+          this.#state = 0;
+          this.disconnected();
+        });
+
+        this.#controlChar = await this.#connectChar(service, this.#CONTROL_CHARACTERISTIC, (event) => this.controlData(event));
+        await this.#connectChar(service, this.#BATTERY_CHARACTERISTIC, (event) => this.batteryData(event));
+        await this.#connectChar(service, this.#GYROSCOPE_CHARACTERISTIC, (event) => this.gyroscopeData(event));
+        await this.#connectChar(service, this.#ACCELEROMETER_CHARACTERISTIC, (event) => this.accelerometerData(event));
+        await this.#connectChar(service, this.#PPG1_CHARACTERISTIC, (event) => this.ppgData(0, event));
+        await this.#connectChar(service, this.#PPG2_CHARACTERISTIC, (event) => this.ppgData(1, event));
+        await this.#connectChar(service, this.#PPG3_CHARACTERISTIC, (event) => this.ppgData(2, event));
+        await this.#connectChar(service, this.#EEG1_CHARACTERISTIC, (event) => this.eegData(0, event));
+        await this.#connectChar(service, this.#EEG2_CHARACTERISTIC, (event) => this.eegData(1, event));
+        await this.#connectChar(service, this.#EEG3_CHARACTERISTIC, (event) => this.eegData(2, event));
+        await this.#connectChar(service, this.#EEG4_CHARACTERISTIC, (event) => this.eegData(3, event));
+        await this.#connectChar(service, this.#EEG5_CHARACTERISTIC, (event) => this.eegData(4, event));
+        await this.#start();
+        await this.#sendCommand("v1");
+        this.#state = 2;
+      }
+    }
+
+    class Muse extends MuseBase {
+      constructor(options = {}) {
+        super(options);
+        const BUFFER_SIZE = 256;
+        this.batteryLevel = null;
+        this.info = {};
+        this.eeg = Array.from({ length: 5 }, () => new MuseCircularBuffer(BUFFER_SIZE));
+        this.ppg = Array.from({ length: 3 }, () => new MuseCircularBuffer(BUFFER_SIZE));
+        this.accelerometer = Array.from({ length: 3 }, () => new MuseCircularBuffer(BUFFER_SIZE));
+        this.gyroscope = Array.from({ length: 3 }, () => new MuseCircularBuffer(BUFFER_SIZE));
+      }
+
+      batteryData(event) {
+        this.batteryLevel = this.eventBatteryData(event);
+      }
+
+      accelerometerData(event) {
+        const vals = this.eventAccelerometerData(event);
+        for (let i = 0; i < 3; i += 1) {
+          this.accelerometer[0].write(vals[0][i]);
+          this.accelerometer[1].write(vals[1][i]);
+          this.accelerometer[2].write(vals[2][i]);
+        }
+      }
+
+      gyroscopeData(event) {
+        const vals = this.eventGyroscopeData(event); // fixed to use gyroscope decoder
+        for (let i = 0; i < 3; i += 1) {
+          this.gyroscope[0].write(vals[0][i]);
+          this.gyroscope[1].write(vals[1][i]);
+          this.gyroscope[2].write(vals[2][i]);
+        }
+      }
+
+      controlData(event) {
+        Object.assign(this.info, this.eventControlData(event));
+      }
+
+      eegData(n, event) {
+        const samples = this.eventEEGData(event).map((x) => 0.48828125 * (x - 0x800));
+        for (let i = 0; i < samples.length; i += 1) this.eeg[n].write(samples[i]);
+      }
+
+      ppgData(n, event) {
+        const samples = this.eventPPGData(event);
+        for (let i = 0; i < samples.length; i += 1) this.ppg[n].write(samples[i]);
+      }
+
+      feedMockSensorSample(sample) {
+        const t = sample.timestamp / 1000;
+        const ppgBase = 52000 + 2500 * Math.sin(2 * Math.PI * 1.15 * t);
+        this.ppg[0].write(ppgBase + 700 * Math.sin(2 * Math.PI * 0.12 * t));
+        this.ppg[1].write(ppgBase + 1100 * Math.sin(2 * Math.PI * 0.19 * t + 0.7));
+        this.ppg[2].write(ppgBase + 1500 * Math.sin(2 * Math.PI * 0.25 * t + 1.3));
+
+        this.accelerometer[0].write(0.015 * Math.sin(2 * Math.PI * 0.55 * t));
+        this.accelerometer[1].write(0.010 * Math.cos(2 * Math.PI * 0.42 * t));
+        this.accelerometer[2].write(0.020 * Math.sin(2 * Math.PI * 0.33 * t + 0.5));
+
+        this.gyroscope[0].write(0.8 * Math.sin(2 * Math.PI * 0.35 * t));
+        this.gyroscope[1].write(0.6 * Math.cos(2 * Math.PI * 0.28 * t + 0.2));
+        this.gyroscope[2].write(0.4 * Math.sin(2 * Math.PI * 0.18 * t + 1.1));
+
+        this.batteryLevel = 94 + 1.2 * Math.sin(2 * Math.PI * 0.01 * t);
+        this.info.mock = true;
+        this.info.mode = "synthetic sensors + EEG CSV";
+      }
+    }
+
+    const connectMuse = async (options = {}) => {
+      const muse = new Muse(options);
+      await muse.connect();
+      return muse;
+    };
+
+    function buildMockCsvUrl(totalMs = 12000, dt = 4) {
+      const rows = ["Timestamp (ms),TP9 (left ear),AF7 (left forehead),AF8 (right forehead),TP10 (right ear)"];
+      for (let ms = 0; ms <= totalMs; ms += dt) {
+        const t = ms / 1000;
+        const theta = 28 * Math.sin(2 * Math.PI * 6 * t);
+        const alpha = 42 * Math.sin(2 * Math.PI * 10 * t + 0.4);
+        const beta = 18 * Math.sin(2 * Math.PI * 18 * t + 1.2);
+        const drift = 8 * Math.sin(2 * Math.PI * 0.2 * t);
+        const tp9 = theta + alpha + drift;
+        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift;
+        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift;
+        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift;
+        rows.push(`${ms},${tp9.toFixed(6)},${af7.toFixed(6)},${af8.toFixed(6)},${tp10.toFixed(6)}`);
+      }
+      return URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
+    }
+
+    const app = document.querySelector("#app");
+    app.innerHTML = `
+      <div class="app-shell">
+        <section class="hero">
+          <h1>Muse live stream viewer</h1>
+          <p>
+            Open this file directly in a Web Bluetooth browser, connect a Muse device, and watch live EEG,
+            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data.
+          </p>
+          <div class="controls">
+            <button id="connect-real" class="primary">Connect Muse</button>
+            <button id="connect-mock" class="secondary">Use mock data</button>
+            <button id="disconnect" class="danger" disabled>Disconnect</button>
+          </div>
+          <div class="status-pill">
+            <span id="status-dot" class="status-dot"></span>
+            <span id="status-text">Idle</span>
+          </div>
+        </section>
+
+        <section class="grid">
+          <div class="panel span-12">
+            <h2>Session</h2>
+            <div class="metric-grid">
+              <div class="metric">
+                <span class="metric-label">Connection</span>
+                <div id="metric-connection" class="metric-value">Disconnected</div>
+                <small id="metric-mode">No stream active</small>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Battery</span>
+                <div id="metric-battery" class="metric-value">—</div>
+                <small>Updates from device telemetry or mock mode</small>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Last EEG sample</span>
+                <div id="metric-eeg" class="metric-value">—</div>
+                <small>Most recent TP10 sample</small>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Environment</span>
+                <div id="metric-env" class="metric-value">Checking…</div>
+                <small id="metric-origin">Origin details</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel span-12">
+            <div>
+              <h2>EEG</h2>
+              <p class="note">Each EEG electrode is plotted on its own scrolling chart.</p>
+            </div>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h3>TP9</h3>
+              <p class="note">Left ear electrode.</p>
+            </div>
+            <div class="canvas-wrap"><canvas id="chart-eeg-tp9"></canvas></div>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h3>AF7</h3>
+              <p class="note">Left forehead electrode.</p>
+            </div>
+            <div class="canvas-wrap"><canvas id="chart-eeg-af7"></canvas></div>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h3>AF8</h3>
+              <p class="note">Right forehead electrode.</p>
+            </div>
+            <div class="canvas-wrap"><canvas id="chart-eeg-af8"></canvas></div>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h3>TP10</h3>
+              <p class="note">Right ear electrode.</p>
+            </div>
+            <div class="canvas-wrap"><canvas id="chart-eeg-tp10"></canvas></div>
+          </div>
+
+          <div class="panel span-12">
+            <h3>Latest channel values</h3>
+            <pre id="latest-values">No data yet.</pre>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h2>PPG</h2>
+              <p class="note">Three photoplethysmography channels streamed from Muse 2 / Muse S.</p>
+            </div>
+            <div class="legend" id="legend-ppg"></div>
+            <div class="canvas-wrap"><canvas id="chart-ppg"></canvas></div>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h2>Accelerometer</h2>
+              <p class="note">Motion on X, Y, and Z axes.</p>
+            </div>
+            <div class="legend" id="legend-accel"></div>
+            <div class="canvas-wrap"><canvas id="chart-accel"></canvas></div>
+          </div>
+
+          <div class="panel span-6 chart-card">
+            <div>
+              <h2>Gyroscope</h2>
+              <p class="note">Angular motion on X, Y, and Z axes.</p>
+            </div>
+            <div class="legend" id="legend-gyro"></div>
+            <div class="canvas-wrap"><canvas id="chart-gyro"></canvas></div>
+          </div>
+
+          <div class="panel span-6">
+            <h3>Control / device info</h3>
+            <pre id="device-info">{}</pre>
+          </div>
+
+          <div class="panel span-12">
+            <h3>How to use</h3>
+            <p class="note">
+              Real-device mode works in compatible Web Bluetooth browsers. If direct-open device access is blocked in your setup,
+              serve the same file from <span class="code">localhost</span> or HTTPS with any static server.
+            </p>
+          </div>
+        </section>
+      </div>
+    `;
+
+    const els = {
+      connectReal: document.querySelector("#connect-real"),
+      connectMock: document.querySelector("#connect-mock"),
+      disconnect: document.querySelector("#disconnect"),
+      statusDot: document.querySelector("#status-dot"),
+      statusText: document.querySelector("#status-text"),
+      metricConnection: document.querySelector("#metric-connection"),
+      metricMode: document.querySelector("#metric-mode"),
+      metricBattery: document.querySelector("#metric-battery"),
+      metricEeg: document.querySelector("#metric-eeg"),
+      metricEnv: document.querySelector("#metric-env"),
+      metricOrigin: document.querySelector("#metric-origin"),
+      latestValues: document.querySelector("#latest-values"),
+      deviceInfo: document.querySelector("#device-info"),
+      charts: {
+        eeg: [
+          document.querySelector("#chart-eeg-tp9"),
+          document.querySelector("#chart-eeg-af7"),
+          document.querySelector("#chart-eeg-af8"),
+          document.querySelector("#chart-eeg-tp10"),
+        ],
+        ppg: document.querySelector("#chart-ppg"),
+        accel: document.querySelector("#chart-accel"),
+        gyro: document.querySelector("#chart-gyro"),
+      },
+    };
+
+    const state = {
+      muse: null,
+      mode: "idle",
+      status: "Idle",
+      error: null,
+      rafId: 0,
+      mockCsvUrl: null,
+      series: {
+        eeg: EEG_CHANNELS.map(() => []),
+        ppg: PPG_CHANNELS.map(() => []),
+        accel: XYZ.map(() => []),
+        gyro: XYZ.map(() => []),
+      },
+      latest: {
+        eeg: EEG_CHANNELS.map(() => null),
+        ppg: PPG_CHANNELS.map(() => null),
+        accel: XYZ.map(() => null),
+        gyro: XYZ.map(() => null),
+      },
+    };
+
+    renderLegends();
+    renderEnvironment();
+    updateUI();
+    renderAllCharts();
+
+    els.connectReal.addEventListener("click", () => connect(false));
+    els.connectMock.addEventListener("click", () => connect(true));
+    els.disconnect.addEventListener("click", disconnectMuse);
+    window.addEventListener("resize", renderAllCharts);
+
+    async function connect(useMock) {
+      if (state.mode === "connecting") return;
+      if (!useMock && !navigator.bluetooth) {
+        setError("This browser does not expose Web Bluetooth. Use Chrome/Edge/Opera or mock mode.");
+        return;
+      }
+
+      resetData();
+      setStatus("Connecting…", "connecting", useMock ? "mock mode" : "real device");
+
+      try {
+        if (useMock) {
+          cleanupMockUrl();
+          state.mockCsvUrl = buildMockCsvUrl();
+          state.muse = await connectMuse({ mock: true, mockDataPath: state.mockCsvUrl });
+        } else {
+          state.muse = await connectMuse();
+        }
+
+        if (state.muse?.state !== 2) {
+          throw new Error("The device did not finish connecting. If you canceled the browser picker, try again.");
+        }
+
+        state.mode = useMock ? "mock" : "live";
+        state.error = null;
+        setStatus("Streaming", "connected", useMock ? "mock data" : "real device");
+        startLoop();
+      } catch (error) {
+        console.error(error);
+        setError(error?.message || "Could not connect to Muse.");
+      }
+    }
+
+    function disconnectMuse() {
+      cancelAnimationFrame(state.rafId);
+      state.rafId = 0;
+      try {
+        state.muse?.disconnect?.();
+      } catch (error) {
+        console.warn("Disconnect warning:", error);
+      }
+      state.muse = null;
+      state.mode = "idle";
+      cleanupMockUrl();
+      setStatus("Disconnected", "idle", "stream closed");
+    }
+
+    function cleanupMockUrl() {
+      if (state.mockCsvUrl) {
+        URL.revokeObjectURL(state.mockCsvUrl);
+        state.mockCsvUrl = null;
+      }
+    }
+
+    function startLoop() {
+      cancelAnimationFrame(state.rafId);
+      const tick = () => {
+        if (!state.muse) return;
+        drainMuseBuffers();
+        updateUI();
+        renderAllCharts();
+        state.rafId = requestAnimationFrame(tick);
+      };
+      state.rafId = requestAnimationFrame(tick);
+    }
+
+    function drainMuseBuffers() {
+      const muse = state.muse;
+      if (!muse) return;
+      drainGroup(muse.eeg?.slice?.(0, 4) ?? [], state.series.eeg, state.latest.eeg, MAX_POINTS.eeg, 96);
+      drainGroup(muse.ppg ?? [], state.series.ppg, state.latest.ppg, MAX_POINTS.ppg, 64);
+      drainGroup(muse.accelerometer ?? [], state.series.accel, state.latest.accel, MAX_POINTS.accel, 18);
+      drainGroup(muse.gyroscope ?? [], state.series.gyro, state.latest.gyro, MAX_POINTS.gyro, 18);
+    }
+
+    function drainGroup(buffers, targetSeries, latestSeries, maxPoints, maxPerTick) {
+      buffers.forEach((buffer, index) => {
+        if (!buffer?.read) return;
+        for (let i = 0; i < maxPerTick; i += 1) {
+          const sample = buffer.read();
+          if (sample === null || sample === undefined) break;
+          pushPoint(targetSeries[index], sample, maxPoints);
+          latestSeries[index] = sample;
+        }
+      });
+    }
+
+    function pushPoint(series, value, maxPoints) {
+      series.push(value);
+      if (series.length > maxPoints) series.splice(0, series.length - maxPoints);
+    }
+
+    function renderEnvironment() {
+      const secure = window.isSecureContext;
+      const isFile = window.location.protocol === "file:";
+      els.metricEnv.textContent = secure ? "Secure context" : "Not secure";
+      els.metricOrigin.textContent = isFile
+        ? "Opened from file://"
+        : `${window.location.protocol}//${window.location.host || "(no host)"}`;
+    }
+
+    function updateUI() {
+      const connected = Boolean(state.muse);
+      const muse = state.muse;
+      els.disconnect.disabled = !connected;
+      els.connectReal.disabled = connected;
+      els.connectMock.disabled = connected;
+
+      els.metricConnection.textContent = connected ? "Connected" : "Disconnected";
+      els.metricMode.textContent =
+        state.mode === "live"
+          ? "Streaming from Muse"
+          : state.mode === "mock"
+            ? "Streaming mock data"
+            : state.error || "No stream active";
+
+      const battery = muse?.batteryLevel;
+      els.metricBattery.textContent = Number.isFinite(battery) ? `${battery.toFixed(1)}%` : "—";
+
+      const lastEeg = state.latest.eeg.at(-1);
+      els.metricEeg.textContent = Number.isFinite(lastEeg) ? formatNumber(lastEeg) : "—";
+
+      els.deviceInfo.textContent = JSON.stringify(muse?.info ?? {}, null, 2);
+      els.latestValues.textContent = JSON.stringify(
+        {
+          eeg: objectFromLabels(EEG_CHANNELS, state.latest.eeg),
+          ppg: objectFromLabels(PPG_CHANNELS, state.latest.ppg),
+          accelerometer: objectFromLabels(XYZ, state.latest.accel),
+          gyroscope: objectFromLabels(XYZ, state.latest.gyro),
+        },
+        null,
+        2,
+      );
+    }
+
+    function objectFromLabels(labels, values) {
+      return Object.fromEntries(
+        labels.map((label, index) => [label, Number.isFinite(values[index]) ? Number(values[index].toFixed(3)) : null]),
+      );
+    }
+
+    function renderLegends() {
+      document.querySelector("#legend-ppg").innerHTML = buildLegend(PPG_CHANNELS, COLORS);
+      document.querySelector("#legend-accel").innerHTML = buildLegend(XYZ, COLORS);
+      document.querySelector("#legend-gyro").innerHTML = buildLegend(XYZ, COLORS);
+    }
+
+    function buildLegend(labels, palette) {
+      return labels.map((label, index) => `
+        <span class="legend-item">
+          <span class="legend-swatch" style="background:${palette[index % palette.length]}"></span>
+          ${label}
+        </span>`).join("");
+    }
+
+    function renderAllCharts() {
+      EEG_CHANNELS.forEach((label, index) => {
+        drawChart(els.charts.eeg[index], [state.series.eeg[index]], {
+          title: label,
+          zeroLine: true,
+          colors: [COLORS[index % COLORS.length]],
+        });
+      });
+      drawChart(els.charts.ppg, state.series.ppg, { title: "PPG", zeroLine: false });
+      drawChart(els.charts.accel, state.series.accel, { title: "Accelerometer", zeroLine: true });
+      drawChart(els.charts.gyro, state.series.gyro, { title: "Gyroscope", zeroLine: true });
+    }
+
+    function drawChart(canvas, seriesList, options = {}) {
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(320, Math.floor(rect.width * dpr));
+      const height = Math.max(200, Math.floor(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#050b12";
+      ctx.fillRect(0, 0, width, height);
+
+      const padding = { top: 18 * dpr, right: 18 * dpr, bottom: 22 * dpr, left: 44 * dpr };
+      const plotWidth = width - padding.left - padding.right;
+      const plotHeight = height - padding.top - padding.bottom;
+
+      const points = seriesList.flat().filter(Number.isFinite);
+      let min = points.length ? Math.min(...points) : -1;
+      let max = points.length ? Math.max(...points) : 1;
+      if (min === max) { min -= 1; max += 1; }
+      const span = max - min;
+      min -= span * 0.08;
+      max += span * 0.08;
+
+      drawGrid(ctx, padding, plotWidth, plotHeight, min, max, options.zeroLine);
+
+      const palette = options.colors ?? COLORS;
+      seriesList.forEach((series, index) => {
+        if (!series.length) return;
+        ctx.beginPath();
+        ctx.lineWidth = 2 * dpr;
+        ctx.strokeStyle = palette[index % palette.length];
+        series.forEach((value, pointIndex) => {
+          const x = padding.left + (pointIndex / Math.max(series.length - 1, 1)) * plotWidth;
+          const y = padding.top + ((max - value) / (max - min)) * plotHeight;
+          if (pointIndex === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = "#d5e7fa";
+      ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
+      ctx.fillText(`${formatNumber(max)}`, 8 * dpr, padding.top + 10 * dpr);
+      ctx.fillText(`${formatNumber(min)}`, 8 * dpr, height - padding.bottom);
+      ctx.fillText(options.title ?? "", padding.left, 12 * dpr);
+    }
+
+    function drawGrid(ctx, padding, plotWidth, plotHeight, min, max, zeroLine) {
+      const lines = 4;
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      ctx.lineWidth = 1;
+
+      for (let i = 0; i <= lines; i += 1) {
+        const y = padding.top + (i / lines) * plotHeight;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(padding.left + plotWidth, y);
+        ctx.stroke();
+      }
+
+      for (let i = 0; i <= lines; i += 1) {
+        const x = padding.left + (i / lines) * plotWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, padding.top + plotHeight);
+        ctx.stroke();
+      }
+
+      if (zeroLine && min < 0 && max > 0) {
+        const y = padding.top + ((max - 0) / (max - min)) * plotHeight;
+        ctx.strokeStyle = "rgba(255, 211, 108, 0.8)";
+        ctx.beginPath();
+        ctx.moveTo(padding.left, y);
+        ctx.lineTo(padding.left + plotWidth, y);
+        ctx.stroke();
+      }
+    }
+
+    function resetData() {
+      state.series = {
+        eeg: EEG_CHANNELS.map(() => []),
+        ppg: PPG_CHANNELS.map(() => []),
+        accel: XYZ.map(() => []),
+        gyro: XYZ.map(() => []),
+      };
+      state.latest = {
+        eeg: EEG_CHANNELS.map(() => null),
+        ppg: PPG_CHANNELS.map(() => null),
+        accel: XYZ.map(() => null),
+        gyro: XYZ.map(() => null),
+      };
+      state.error = null;
+      renderAllCharts();
+      updateUI();
+    }
+
+    function setStatus(message, mode, detail = "") {
+      state.status = message;
+      state.mode = mode === "connected" ? state.mode : mode;
+      state.error = mode === "error" ? message : null;
+      els.statusText.textContent = detail ? `${message} • ${detail}` : message;
+      els.statusDot.className = "status-dot";
+      if (mode === "connected") els.statusDot.classList.add("connected");
+      else if (mode === "error") els.statusDot.classList.add("error");
+      updateUI();
+    }
+
+    function setError(message) {
+      disconnectMuse();
+      state.error = message;
+      setStatus(message, "error", "connection failed");
+    }
+
+    function formatNumber(value) {
+      if (!Number.isFinite(value)) return "—";
+      const abs = Math.abs(value);
+      if (abs >= 1000) return value.toFixed(0);
+      if (abs >= 100) return value.toFixed(1);
+      if (abs >= 10) return value.toFixed(2);
+      return value.toFixed(3);
+    }
+  </script>
+</body>
+</html>
