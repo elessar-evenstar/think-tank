@@ -89,8 +89,26 @@
 
     .metric-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 12px;
+    }
+
+    .blink-banner {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--muted);
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+    }
+
+    .blink-banner.active {
+      background: rgba(142, 255, 193, 0.12);
+      border-color: rgba(142, 255, 193, 0.6);
+      color: var(--text);
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 1px rgba(142, 255, 193, 0.18) inset;
     }
 
     .metric {
@@ -175,7 +193,17 @@
     const PPG_CHANNELS = ["Ambient", "Infrared", "Red"];
     const XYZ = ["X", "Y", "Z"];
     const COLORS = ["#6cc3ff", "#8effc1", "#ffd36c", "#ff8ea1", "#c49dff"];
-    const MAX_POINTS = { eeg: 1000, ppg: 240, accel: 180, gyro: 180 };
+    const MAX_POINTS = { eeg: 300, ppg: 240, accel: 180, gyro: 180 };
+    const BLINK_CONFIG = {
+      recentPoints: 20,
+      baselinePoints: 96,
+      minCommonDip: 55,
+      minScore: 3.0,
+      maxDisagreementRatio: 0.95,
+      minChannelDip: 28,
+      cooldownMs: 450,
+      bannerMs: 1200,
+    };
 
     class MuseCircularBuffer {
       constructor(size) {
@@ -595,16 +623,28 @@
 
     function buildMockCsvUrl(totalMs = 12000, dt = 4) {
       const rows = ["Timestamp (ms),TP9 (left ear),AF7 (left forehead),AF8 (right forehead),TP10 (right ear)"];
+      const blinkCenters = [2500, 6100, 9800];
+
+      const blinkWave = (ms, center, amplitude = 185) => {
+        const x1 = (ms - center) / 45;
+        const x2 = (ms - (center + 55)) / 70;
+        return -amplitude * Math.exp(-0.5 * x1 * x1) + 0.28 * amplitude * Math.exp(-0.5 * x2 * x2);
+      };
+
       for (let ms = 0; ms <= totalMs; ms += dt) {
         const t = ms / 1000;
         const theta = 28 * Math.sin(2 * Math.PI * 6 * t);
         const alpha = 42 * Math.sin(2 * Math.PI * 10 * t + 0.4);
         const beta = 18 * Math.sin(2 * Math.PI * 18 * t + 1.2);
         const drift = 8 * Math.sin(2 * Math.PI * 0.2 * t);
-        const tp9 = theta + alpha + drift;
-        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift;
-        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift;
-        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift;
+
+        let blink = 0;
+        for (const center of blinkCenters) blink += blinkWave(ms, center);
+
+        const tp9 = theta + alpha + drift + blink * 1.05;
+        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift + blink * 0.18;
+        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift + blink * 0.16;
+        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift + blink * 0.98;
         rows.push(`${ms},${tp9.toFixed(6)},${af7.toFixed(6)},${af8.toFixed(6)},${tp10.toFixed(6)}`);
       }
       return URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
@@ -617,7 +657,7 @@
           <h1>Muse live stream viewer</h1>
           <p>
             Open this file directly in a Web Bluetooth browser, connect a Muse device, and watch live EEG,
-            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data.
+            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data, including a few synthetic TP blinks so you can test the detector.
           </p>
           <div class="controls">
             <button id="connect-real" class="primary">Connect Muse</button>
@@ -628,6 +668,7 @@
             <span id="status-dot" class="status-dot"></span>
             <span id="status-text">Idle</span>
           </div>
+          <div id="blink-banner" class="blink-banner" aria-live="polite">Blink detector idle.</div>
         </section>
 
         <section class="grid">
@@ -654,13 +695,23 @@
                 <div id="metric-env" class="metric-value">Checking…</div>
                 <small id="metric-origin">Origin details</small>
               </div>
+              <div class="metric">
+                <span class="metric-label">Blinks detected</span>
+                <div id="metric-blink-count" class="metric-value">0</div>
+                <small id="metric-blink-last">No blink yet</small>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Blink detector</span>
+                <div id="metric-blink-score" class="metric-value">Waiting…</div>
+                <small>Heuristic based on TP9 + TP10 downward dips</small>
+              </div>
             </div>
           </div>
 
           <div class="panel span-12">
             <div>
               <h2>EEG</h2>
-              <p class="note">Each EEG electrode is plotted on its own scrolling chart.</p>
+              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches TP9 and TP10 for a shared downward dip.</p>
             </div>
           </div>
 
@@ -750,12 +801,16 @@
       disconnect: document.querySelector("#disconnect"),
       statusDot: document.querySelector("#status-dot"),
       statusText: document.querySelector("#status-text"),
+      blinkBanner: document.querySelector("#blink-banner"),
       metricConnection: document.querySelector("#metric-connection"),
       metricMode: document.querySelector("#metric-mode"),
       metricBattery: document.querySelector("#metric-battery"),
       metricEeg: document.querySelector("#metric-eeg"),
       metricEnv: document.querySelector("#metric-env"),
       metricOrigin: document.querySelector("#metric-origin"),
+      metricBlinkCount: document.querySelector("#metric-blink-count"),
+      metricBlinkLast: document.querySelector("#metric-blink-last"),
+      metricBlinkScore: document.querySelector("#metric-blink-score"),
       latestValues: document.querySelector("#latest-values"),
       deviceInfo: document.querySelector("#device-info"),
       charts: {
@@ -789,6 +844,19 @@
         ppg: PPG_CHANNELS.map(() => null),
         accel: XYZ.map(() => null),
         gyro: XYZ.map(() => null),
+      },
+      blink: {
+        count: 0,
+        score: 0,
+        commonDip: 0,
+        tp9Dip: 0,
+        tp10Dip: 0,
+        disagreement: 0,
+        aboveThreshold: false,
+        lastDetectedAt: 0,
+        lastDetectedClock: "",
+        flashUntil: 0,
+        bannerText: "Blink detector idle.",
       },
     };
 
@@ -861,6 +929,7 @@
       const tick = () => {
         if (!state.muse) return;
         drainMuseBuffers();
+        detectBlink();
         updateUI();
         renderAllCharts();
         state.rafId = requestAnimationFrame(tick);
@@ -924,6 +993,20 @@
       const lastEeg = state.latest.eeg.at(-1);
       els.metricEeg.textContent = Number.isFinite(lastEeg) ? formatNumber(lastEeg) : "—";
 
+      els.metricBlinkCount.textContent = String(state.blink.count);
+      els.metricBlinkLast.textContent = formatBlinkLastSeen(state.blink.lastDetectedAt, state.blink.lastDetectedClock);
+      els.metricBlinkScore.textContent = Number.isFinite(state.blink.score) && state.blink.score > 0
+        ? `${state.blink.score.toFixed(2)}×`
+        : connected
+          ? "Watching…"
+          : "Waiting…";
+
+      const blinkBannerActive = Date.now() < state.blink.flashUntil;
+      els.blinkBanner.textContent = connected
+        ? (blinkBannerActive ? state.blink.bannerText : `Blink detector ready. Score ${state.blink.score.toFixed(2)}×.`)
+        : "Blink detector idle.";
+      els.blinkBanner.classList.toggle("active", blinkBannerActive);
+
       els.deviceInfo.textContent = JSON.stringify(muse?.info ?? {}, null, 2);
       els.latestValues.textContent = JSON.stringify(
         {
@@ -931,6 +1014,15 @@
           ppg: objectFromLabels(PPG_CHANNELS, state.latest.ppg),
           accelerometer: objectFromLabels(XYZ, state.latest.accel),
           gyroscope: objectFromLabels(XYZ, state.latest.gyro),
+          blink: {
+            count: state.blink.count,
+            score: Number(state.blink.score.toFixed(3)),
+            commonDip: Number(state.blink.commonDip.toFixed(3)),
+            tp9Dip: Number(state.blink.tp9Dip.toFixed(3)),
+            tp10Dip: Number(state.blink.tp10Dip.toFixed(3)),
+            disagreement: Number(state.blink.disagreement.toFixed(3)),
+            lastDetectedAt: state.blink.lastDetectedClock || null,
+          },
         },
         null,
         2,
@@ -941,6 +1033,105 @@
       return Object.fromEntries(
         labels.map((label, index) => [label, Number.isFinite(values[index]) ? Number(values[index].toFixed(3)) : null]),
       );
+    }
+
+    function detectBlink() {
+      const [tp9, af7, af8, tp10] = state.series.eeg;
+      const minLength = BLINK_CONFIG.baselinePoints + BLINK_CONFIG.recentPoints + 2;
+      const available = Math.min(tp9.length, af7.length, af8.length, tp10.length);
+      if (available < minLength) return;
+
+      const tp9Baseline = meanFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
+      const tp10Baseline = meanFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
+      const tp9RecentMin = minFromEnd(tp9, BLINK_CONFIG.recentPoints, 0);
+      const tp10RecentMin = minFromEnd(tp10, BLINK_CONFIG.recentPoints, 0);
+
+      const tp9Dip = Math.max(0, tp9Baseline - tp9RecentMin);
+      const tp10Dip = Math.max(0, tp10Baseline - tp10RecentMin);
+      const commonDip = (tp9Dip + tp10Dip) / 2;
+      const disagreement = Math.abs(tp9Dip - tp10Dip);
+      const noise = Math.max(
+        12,
+        (stdFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
+          + stdFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)) / 2,
+      );
+      const score = commonDip / noise;
+      const aboveThreshold = commonDip >= BLINK_CONFIG.minCommonDip
+        && tp9Dip >= BLINK_CONFIG.minChannelDip
+        && tp10Dip >= BLINK_CONFIG.minChannelDip
+        && score >= BLINK_CONFIG.minScore
+        && disagreement <= commonDip * BLINK_CONFIG.maxDisagreementRatio;
+
+      state.blink.score = Number.isFinite(score) ? score : 0;
+      state.blink.commonDip = Number.isFinite(commonDip) ? commonDip : 0;
+      state.blink.tp9Dip = Number.isFinite(tp9Dip) ? tp9Dip : 0;
+      state.blink.tp10Dip = Number.isFinite(tp10Dip) ? tp10Dip : 0;
+      state.blink.disagreement = Number.isFinite(disagreement) ? disagreement : 0;
+
+      const now = Date.now();
+      if (aboveThreshold && !state.blink.aboveThreshold && now - state.blink.lastDetectedAt >= BLINK_CONFIG.cooldownMs) {
+        state.blink.count += 1;
+        state.blink.lastDetectedAt = now;
+        state.blink.lastDetectedClock = new Date(now).toLocaleTimeString();
+        state.blink.flashUntil = now + BLINK_CONFIG.bannerMs;
+        state.blink.bannerText = `Blink detected at ${state.blink.lastDetectedClock}`;
+      }
+      state.blink.aboveThreshold = aboveThreshold;
+    }
+
+    function meanFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(0, end - count);
+      if (end <= start) return 0;
+      let total = 0;
+      let samples = 0;
+      for (let i = start; i < end; i += 1) {
+        const value = series[i];
+        if (!Number.isFinite(value)) continue;
+        total += value;
+        samples += 1;
+      }
+      return samples ? total / samples : 0;
+    }
+
+    function minFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(0, end - count);
+      if (end <= start) return 0;
+      let found = false;
+      let min = Infinity;
+      for (let i = start; i < end; i += 1) {
+        const value = series[i];
+        if (!Number.isFinite(value)) continue;
+        if (value < min) min = value;
+        found = true;
+      }
+      return found ? min : 0;
+    }
+
+    function stdFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(0, end - count);
+      if (end <= start) return 0;
+      const mean = meanFromEnd(series, count, offset);
+      let total = 0;
+      let samples = 0;
+      for (let i = start; i < end; i += 1) {
+        const value = series[i];
+        if (!Number.isFinite(value)) continue;
+        total += (value - mean) * (value - mean);
+        samples += 1;
+      }
+      return samples ? Math.sqrt(total / samples) : 0;
+    }
+
+    function formatBlinkLastSeen(timestamp, clockText) {
+      if (!timestamp) return "No blink yet";
+      const secondsAgo = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+      if (secondsAgo < 2) return `Just now • ${clockText}`;
+      if (secondsAgo < 60) return `${secondsAgo}s ago • ${clockText}`;
+      const minutesAgo = Math.floor(secondsAgo / 60);
+      return `${minutesAgo}m ago • ${clockText}`;
     }
 
     function renderLegends() {
@@ -1064,6 +1255,19 @@
         ppg: PPG_CHANNELS.map(() => null),
         accel: XYZ.map(() => null),
         gyro: XYZ.map(() => null),
+      };
+      state.blink = {
+        count: 0,
+        score: 0,
+        commonDip: 0,
+        tp9Dip: 0,
+        tp10Dip: 0,
+        disagreement: 0,
+        aboveThreshold: false,
+        lastDetectedAt: 0,
+        lastDetectedClock: "",
+        flashUntil: 0,
+        bannerText: "Blink detector ready.",
       };
       state.error = null;
       renderAllCharts();
