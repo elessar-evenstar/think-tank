@@ -93,7 +93,7 @@
       gap: 12px;
     }
 
-    .blink-banner {
+    .blink-banner, .jaw-banner {
       margin-top: 14px;
       padding: 12px 14px;
       border-radius: 14px;
@@ -109,6 +109,14 @@
       color: var(--text);
       transform: translateY(-1px);
       box-shadow: 0 0 0 1px rgba(142, 255, 193, 0.18) inset;
+    }
+
+    .jaw-banner.active {
+      background: rgba(255, 211, 108, 0.14);
+      border-color: rgba(255, 211, 108, 0.65);
+      color: var(--text);
+      transform: translateY(-1px);
+      box-shadow: 0 0 0 1px rgba(255, 211, 108, 0.18) inset;
     }
 
     .metric {
@@ -195,14 +203,35 @@
     const COLORS = ["#6cc3ff", "#8effc1", "#ffd36c", "#ff8ea1", "#c49dff"];
     const MAX_POINTS = { eeg: 300, ppg: 240, accel: 180, gyro: 180 };
     const BLINK_CONFIG = {
-      recentPoints: 20,
+      recentPoints: 12,
       baselinePoints: 96,
-      minCommonDip: 55,
+      minCommonRise: 34,
       minScore: 3.0,
-      maxDisagreementRatio: 0.95,
-      minChannelDip: 28,
-      cooldownMs: 450,
+      maxDisagreementRatio: 0.8,
+      minChannelRise: 14,
+      minPeakProminence: 10.5,
+      maxTpActivityRatio: 2.2,
+      maxTpBurstCount: 5,
+      tpHardBlinkValue: -400,
+      tpHardBlinkCommonDip: 0,
+      cooldownMs: 520,
+      releaseCommonRise: 12,
+      releaseScore: 1.6,
       bannerMs: 1200,
+    };
+    const JAW_CONFIG = {
+      recentPoints: 28,
+      baselinePoints: 120,
+      minCommonRise: 7,
+      minScore: 2.2,
+      maxDisagreementRatio: 1.1,
+      minChannelRise: 4,
+      minBurstCount: 8,
+      cooldownMs: 850,
+      bannerMs: 1400,
+      blockAfterBlinkMs: 250,
+      preferJawOverBlinkMs: 350,
+      blinkArtifactTpValue: -400,
     };
 
     class MuseCircularBuffer {
@@ -624,11 +653,17 @@
     function buildMockCsvUrl(totalMs = 12000, dt = 4) {
       const rows = ["Timestamp (ms),TP9 (left ear),AF7 (left forehead),AF8 (right forehead),TP10 (right ear)"];
       const blinkCenters = [2500, 6100, 9800];
+      const jawCenters = [4300, 7900];
 
-      const blinkWave = (ms, center, amplitude = 185) => {
-        const x1 = (ms - center) / 45;
-        const x2 = (ms - (center + 55)) / 70;
-        return -amplitude * Math.exp(-0.5 * x1 * x1) + 0.28 * amplitude * Math.exp(-0.5 * x2 * x2);
+      const blinkWave = (ms, center, amplitude = 62) => {
+        const x1 = (ms - center) / 34;
+        const x2 = (ms - (center + 28)) / 52;
+        return amplitude * Math.exp(-0.5 * x1 * x1) + 0.22 * amplitude * Math.exp(-0.5 * x2 * x2);
+      };
+
+      const jawWave = (ms, center, amplitude = 24, freqHz = 38) => {
+        const envelope = Math.exp(-0.5 * ((ms - center) / 120) * ((ms - center) / 120));
+        return amplitude * Math.sin(2 * Math.PI * freqHz * (ms - center) / 1000) * envelope;
       };
 
       for (let ms = 0; ms <= totalMs; ms += dt) {
@@ -641,10 +676,13 @@
         let blink = 0;
         for (const center of blinkCenters) blink += blinkWave(ms, center);
 
-        const tp9 = theta + alpha + drift + blink * 1.05;
-        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift + blink * 0.18;
-        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift + blink * 0.16;
-        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift + blink * 0.98;
+        let jaw = 0;
+        for (const center of jawCenters) jaw += jawWave(ms, center);
+
+        const tp9 = theta + alpha + drift - blink * 0.08 + jaw * 1.1;
+        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift + blink * 1.0 + jaw * 0.35;
+        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift + blink * 0.92 - jaw * 0.32;
+        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift - blink * 0.06 - jaw * 1.05;
         rows.push(`${ms},${tp9.toFixed(6)},${af7.toFixed(6)},${af8.toFixed(6)},${tp10.toFixed(6)}`);
       }
       return URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
@@ -657,7 +695,7 @@
           <h1>Muse live stream viewer</h1>
           <p>
             Open this file directly in a Web Bluetooth browser, connect a Muse device, and watch live EEG,
-            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data, including a few synthetic TP blinks so you can test the detector.
+            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data, including synthetic AF forehead blinks and jaw-like muscle bursts so you can test both detectors.
           </p>
           <div class="controls">
             <button id="connect-real" class="primary">Connect Muse</button>
@@ -669,6 +707,7 @@
             <span id="status-text">Idle</span>
           </div>
           <div id="blink-banner" class="blink-banner" aria-live="polite">Blink detector idle.</div>
+          <div id="jaw-banner" class="jaw-banner" aria-live="polite">Jaw-clench detector idle.</div>
         </section>
 
         <section class="grid">
@@ -705,13 +744,23 @@
                 <div id="metric-blink-score" class="metric-value">Waiting…</div>
                 <small>Heuristic based on TP9 + TP10 downward dips</small>
               </div>
+              <div class="metric">
+                <span class="metric-label">Jaw clenches detected</span>
+                <div id="metric-jaw-count" class="metric-value">0</div>
+                <small id="metric-jaw-last">No jaw clench yet</small>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Jaw-clench detector</span>
+                <div id="metric-jaw-score" class="metric-value">Waiting…</div>
+                <small>Heuristic based on TP9 + TP10 rough muscle bursts</small>
+              </div>
             </div>
           </div>
 
           <div class="panel span-12">
             <div>
               <h2>EEG</h2>
-              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches TP9 and TP10 for a shared downward dip.</p>
+              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches AF7 and AF8 for a shared upward spike, while jaw-clench detection watches TP9 and TP10 for a short burst of rough muscle activity.</p>
             </div>
           </div>
 
@@ -802,6 +851,7 @@
       statusDot: document.querySelector("#status-dot"),
       statusText: document.querySelector("#status-text"),
       blinkBanner: document.querySelector("#blink-banner"),
+      jawBanner: document.querySelector("#jaw-banner"),
       metricConnection: document.querySelector("#metric-connection"),
       metricMode: document.querySelector("#metric-mode"),
       metricBattery: document.querySelector("#metric-battery"),
@@ -811,6 +861,9 @@
       metricBlinkCount: document.querySelector("#metric-blink-count"),
       metricBlinkLast: document.querySelector("#metric-blink-last"),
       metricBlinkScore: document.querySelector("#metric-blink-score"),
+      metricJawCount: document.querySelector("#metric-jaw-count"),
+      metricJawLast: document.querySelector("#metric-jaw-last"),
+      metricJawScore: document.querySelector("#metric-jaw-score"),
       latestValues: document.querySelector("#latest-values"),
       deviceInfo: document.querySelector("#device-info"),
       charts: {
@@ -848,15 +901,38 @@
       blink: {
         count: 0,
         score: 0,
-        commonDip: 0,
-        tp9Dip: 0,
-        tp10Dip: 0,
+        commonRise: 0,
+        af7Rise: 0,
+        af8Rise: 0,
         disagreement: 0,
+        tpActivityRatio: 0,
+        tpBurstCount: 0,
+        tpArtifactCommonDip: 0,
+        tpArtifactMaxDip: 0,
+        tpMostNegative: 0,
+        tpHardBlink: false,
+        mode: "idle",
         aboveThreshold: false,
         lastDetectedAt: 0,
         lastDetectedClock: "",
         flashUntil: 0,
         bannerText: "Blink detector idle.",
+      },
+      jaw: {
+        count: 0,
+        score: 0,
+        commonRise: 0,
+        tp9Rise: 0,
+        tp10Rise: 0,
+        disagreement: 0,
+        burstCount: 0,
+        artifactBlocked: false,
+        tpMostNegative: 0,
+        aboveThreshold: false,
+        lastDetectedAt: 0,
+        lastDetectedClock: "",
+        flashUntil: 0,
+        bannerText: "Jaw-clench detector idle.",
       },
     };
 
@@ -930,6 +1006,7 @@
         if (!state.muse) return;
         drainMuseBuffers();
         detectBlink();
+        detectJawClench();
         updateUI();
         renderAllCharts();
         state.rafId = requestAnimationFrame(tick);
@@ -1001,11 +1078,25 @@
           ? "Watching…"
           : "Waiting…";
 
+      els.metricJawCount.textContent = String(state.jaw.count);
+      els.metricJawLast.textContent = formatJawLastSeen(state.jaw.lastDetectedAt, state.jaw.lastDetectedClock);
+      els.metricJawScore.textContent = Number.isFinite(state.jaw.score) && state.jaw.score > 0
+        ? `${state.jaw.score.toFixed(2)}×`
+        : connected
+          ? "Watching…"
+          : "Waiting…";
+
       const blinkBannerActive = Date.now() < state.blink.flashUntil;
       els.blinkBanner.textContent = connected
         ? (blinkBannerActive ? state.blink.bannerText : `Blink detector ready. Score ${state.blink.score.toFixed(2)}×.`)
         : "Blink detector idle.";
       els.blinkBanner.classList.toggle("active", blinkBannerActive);
+
+      const jawBannerActive = Date.now() < state.jaw.flashUntil;
+      els.jawBanner.textContent = connected
+        ? (jawBannerActive ? state.jaw.bannerText : `Jaw-clench detector ready. Score ${state.jaw.score.toFixed(2)}×.`)
+        : "Jaw-clench detector idle.";
+      els.jawBanner.classList.toggle("active", jawBannerActive);
 
       els.deviceInfo.textContent = JSON.stringify(muse?.info ?? {}, null, 2);
       els.latestValues.textContent = JSON.stringify(
@@ -1017,11 +1108,30 @@
           blink: {
             count: state.blink.count,
             score: Number(state.blink.score.toFixed(3)),
-            commonDip: Number(state.blink.commonDip.toFixed(3)),
-            tp9Dip: Number(state.blink.tp9Dip.toFixed(3)),
-            tp10Dip: Number(state.blink.tp10Dip.toFixed(3)),
+            commonRise: Number(state.blink.commonRise.toFixed(3)),
+            af7Rise: Number(state.blink.af7Rise.toFixed(3)),
+            af8Rise: Number(state.blink.af8Rise.toFixed(3)),
             disagreement: Number(state.blink.disagreement.toFixed(3)),
+            tpActivityRatio: Number(state.blink.tpActivityRatio.toFixed(3)),
+            tpBurstCount: Number(state.blink.tpBurstCount.toFixed(3)),
+            tpArtifactCommonDip: Number(state.blink.tpArtifactCommonDip.toFixed(3)),
+            tpArtifactMaxDip: Number(state.blink.tpArtifactMaxDip.toFixed(3)),
+            tpMostNegative: Number(state.blink.tpMostNegative.toFixed(3)),
+            tpHardBlink: state.blink.tpHardBlink,
+            mode: state.blink.mode,
             lastDetectedAt: state.blink.lastDetectedClock || null,
+          },
+          jaw: {
+            count: state.jaw.count,
+            score: Number(state.jaw.score.toFixed(3)),
+            commonRise: Number(state.jaw.commonRise.toFixed(3)),
+            tp9Rise: Number(state.jaw.tp9Rise.toFixed(3)),
+            tp10Rise: Number(state.jaw.tp10Rise.toFixed(3)),
+            disagreement: Number(state.jaw.disagreement.toFixed(3)),
+            burstCount: Number(state.jaw.burstCount.toFixed(3)),
+            artifactBlocked: state.jaw.artifactBlocked,
+            tpMostNegative: Number(state.jaw.tpMostNegative.toFixed(3)),
+            lastDetectedAt: state.jaw.lastDetectedClock || null,
           },
         },
         null,
@@ -1041,42 +1151,169 @@
       const available = Math.min(tp9.length, af7.length, af8.length, tp10.length);
       if (available < minLength) return;
 
+      const af7Baseline = meanFromEnd(af7, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
+      const af8Baseline = meanFromEnd(af8, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
+      const af7RecentMax = maxFromEnd(af7, BLINK_CONFIG.recentPoints, 0);
+      const af8RecentMax = maxFromEnd(af8, BLINK_CONFIG.recentPoints, 0);
+      const af7RecentMean = meanFromEnd(af7, BLINK_CONFIG.recentPoints, 0);
+      const af8RecentMean = meanFromEnd(af8, BLINK_CONFIG.recentPoints, 0);
+
+      const af7Rise = Math.max(0, af7RecentMax - af7Baseline);
+      const af8Rise = Math.max(0, af8RecentMax - af8Baseline);
+      const commonRise = (af7Rise + af8Rise) / 2;
+      const disagreement = Math.abs(af7Rise - af8Rise);
+      const af7Prominence = Math.max(0, af7RecentMax - af7RecentMean);
+      const af8Prominence = Math.max(0, af8RecentMax - af8RecentMean);
+      const peakProminence = Math.min(af7Prominence, af8Prominence);
+      const noise = Math.max(
+        8,
+        (stdFromEnd(af7, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
+          + stdFromEnd(af8, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)) / 2,
+      );
+      const afScore = commonRise / noise;
+
+      const tp9Activity = meanAbsDiffFromEnd(tp9, BLINK_CONFIG.recentPoints, 0);
+      const tp10Activity = meanAbsDiffFromEnd(tp10, BLINK_CONFIG.recentPoints, 0);
+      const tpBaselineActivity = (
+        meanAbsDiffFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
+        + meanAbsDiffFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
+      ) / 2;
+      const tpRecentActivity = (tp9Activity + tp10Activity) / 2;
+      const tpActivityRatio = tpRecentActivity / Math.max(3, tpBaselineActivity);
+
+      const tp9DiffNoise = stdAbsDiffFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
+      const tp10DiffNoise = stdAbsDiffFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
+      const tp9BurstThreshold = Math.max(7, meanAbsDiffFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints) + tp9DiffNoise * 1.4);
+      const tp10BurstThreshold = Math.max(7, meanAbsDiffFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints) + tp10DiffNoise * 1.4);
+      const tpBurstCount = (
+        countAbsDiffAboveFromEnd(tp9, BLINK_CONFIG.recentPoints, tp9BurstThreshold, 0)
+        + countAbsDiffAboveFromEnd(tp10, BLINK_CONFIG.recentPoints, tp10BurstThreshold, 0)
+      ) / 2;
+
       const tp9Baseline = meanFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
       const tp10Baseline = meanFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
       const tp9RecentMin = minFromEnd(tp9, BLINK_CONFIG.recentPoints, 0);
       const tp10RecentMin = minFromEnd(tp10, BLINK_CONFIG.recentPoints, 0);
+      const tp9ArtifactDip = Math.max(0, tp9Baseline - tp9RecentMin);
+      const tp10ArtifactDip = Math.max(0, tp10Baseline - tp10RecentMin);
+      const tpArtifactCommonDip = (tp9ArtifactDip + tp10ArtifactDip) / 2;
+      const tpArtifactMaxDip = Math.max(tp9ArtifactDip, tp10ArtifactDip);
+      const tpMostNegative = Math.min(tp9RecentMin, tp10RecentMin);
+      const tpHardBlink = tpMostNegative <= BLINK_CONFIG.tpHardBlinkValue;
 
-      const tp9Dip = Math.max(0, tp9Baseline - tp9RecentMin);
-      const tp10Dip = Math.max(0, tp10Baseline - tp10RecentMin);
-      const commonDip = (tp9Dip + tp10Dip) / 2;
-      const disagreement = Math.abs(tp9Dip - tp10Dip);
-      const noise = Math.max(
-        12,
-        (stdFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
-          + stdFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)) / 2,
+      const afBlinkEnter = commonRise >= BLINK_CONFIG.minCommonRise
+        && af7Rise >= BLINK_CONFIG.minChannelRise
+        && af8Rise >= BLINK_CONFIG.minChannelRise
+        && peakProminence >= BLINK_CONFIG.minPeakProminence
+        && afScore >= BLINK_CONFIG.minScore
+        && disagreement <= Math.max(10, commonRise * BLINK_CONFIG.maxDisagreementRatio)
+        && tpActivityRatio <= BLINK_CONFIG.maxTpActivityRatio
+        && tpBurstCount <= BLINK_CONFIG.maxTpBurstCount;
+
+      const enterThreshold = tpHardBlink || afBlinkEnter;
+      const stayAbove = state.blink.aboveThreshold && (
+        tpHardBlink
+        || (commonRise >= BLINK_CONFIG.releaseCommonRise && afScore >= BLINK_CONFIG.releaseScore)
       );
-      const score = commonDip / noise;
-      const aboveThreshold = commonDip >= BLINK_CONFIG.minCommonDip
-        && tp9Dip >= BLINK_CONFIG.minChannelDip
-        && tp10Dip >= BLINK_CONFIG.minChannelDip
-        && score >= BLINK_CONFIG.minScore
-        && disagreement <= commonDip * BLINK_CONFIG.maxDisagreementRatio;
+      const aboveThreshold = enterThreshold || stayAbove;
+      const score = tpHardBlink ? Math.max(afScore, tpArtifactCommonDip / 35, Math.max(0, (-tpMostNegative - 300) / 50)) : afScore;
+      const blinkMode = tpHardBlink ? "tp-hard" : (afBlinkEnter ? "af-soft" : (aboveThreshold ? state.blink.mode : "idle"));
 
       state.blink.score = Number.isFinite(score) ? score : 0;
-      state.blink.commonDip = Number.isFinite(commonDip) ? commonDip : 0;
-      state.blink.tp9Dip = Number.isFinite(tp9Dip) ? tp9Dip : 0;
-      state.blink.tp10Dip = Number.isFinite(tp10Dip) ? tp10Dip : 0;
+      state.blink.commonRise = Number.isFinite(commonRise) ? commonRise : 0;
+      state.blink.af7Rise = Number.isFinite(af7Rise) ? af7Rise : 0;
+      state.blink.af8Rise = Number.isFinite(af8Rise) ? af8Rise : 0;
       state.blink.disagreement = Number.isFinite(disagreement) ? disagreement : 0;
+      state.blink.tpActivityRatio = Number.isFinite(tpActivityRatio) ? tpActivityRatio : 0;
+      state.blink.tpBurstCount = Number.isFinite(tpBurstCount) ? tpBurstCount : 0;
+      state.blink.tpArtifactCommonDip = Number.isFinite(tpArtifactCommonDip) ? tpArtifactCommonDip : 0;
+      state.blink.tpArtifactMaxDip = Number.isFinite(tpArtifactMaxDip) ? tpArtifactMaxDip : 0;
+      state.blink.tpMostNegative = Number.isFinite(tpMostNegative) ? tpMostNegative : 0;
+      state.blink.tpHardBlink = tpHardBlink;
+      state.blink.mode = blinkMode;
 
       const now = Date.now();
-      if (aboveThreshold && !state.blink.aboveThreshold && now - state.blink.lastDetectedAt >= BLINK_CONFIG.cooldownMs) {
+      if (enterThreshold && !state.blink.aboveThreshold && now - state.blink.lastDetectedAt >= BLINK_CONFIG.cooldownMs) {
         state.blink.count += 1;
         state.blink.lastDetectedAt = now;
         state.blink.lastDetectedClock = new Date(now).toLocaleTimeString();
         state.blink.flashUntil = now + BLINK_CONFIG.bannerMs;
-        state.blink.bannerText = `Blink detected at ${state.blink.lastDetectedClock}`;
+        state.blink.bannerText = `Blink detected at ${state.blink.lastDetectedClock} (${blinkMode})`;
       }
       state.blink.aboveThreshold = aboveThreshold;
+    }
+
+    function detectJawClench() {
+      const [tp9, af7, af8, tp10] = state.series.eeg;
+      const minLength = JAW_CONFIG.baselinePoints + JAW_CONFIG.recentPoints + 3;
+      const available = Math.min(tp9.length, af7.length, af8.length, tp10.length);
+      if (available < minLength) return;
+
+      const tp9BaselineActivity = meanAbsDiffFromEnd(tp9, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
+      const tp10BaselineActivity = meanAbsDiffFromEnd(tp10, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
+      const tp9RecentActivity = meanAbsDiffFromEnd(tp9, JAW_CONFIG.recentPoints, 0);
+      const tp10RecentActivity = meanAbsDiffFromEnd(tp10, JAW_CONFIG.recentPoints, 0);
+
+      const tp9Rise = Math.max(0, tp9RecentActivity - tp9BaselineActivity);
+      const tp10Rise = Math.max(0, tp10RecentActivity - tp10BaselineActivity);
+      const commonRise = (tp9Rise + tp10Rise) / 2;
+      const disagreement = Math.abs(tp9Rise - tp10Rise);
+
+      const tp9Noise = stdAbsDiffFromEnd(tp9, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
+      const tp10Noise = stdAbsDiffFromEnd(tp10, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
+      const noise = Math.max(2.5, (tp9Noise + tp10Noise) / 2);
+      const score = commonRise / noise;
+
+      const tp9BurstThreshold = Math.max(8, tp9BaselineActivity + tp9Noise * 1.5);
+      const tp10BurstThreshold = Math.max(8, tp10BaselineActivity + tp10Noise * 1.5);
+      const tp9BurstCount = countAbsDiffAboveFromEnd(tp9, JAW_CONFIG.recentPoints, tp9BurstThreshold, 0);
+      const tp10BurstCount = countAbsDiffAboveFromEnd(tp10, JAW_CONFIG.recentPoints, tp10BurstThreshold, 0);
+      const burstCount = (tp9BurstCount + tp10BurstCount) / 2;
+
+      const tp9RecentMin = minFromEnd(tp9, JAW_CONFIG.recentPoints, 0);
+      const tp10RecentMin = minFromEnd(tp10, JAW_CONFIG.recentPoints, 0);
+      const tpMostNegative = Math.min(tp9RecentMin, tp10RecentMin);
+      const blinkArtifactBlocked = tpMostNegative <= JAW_CONFIG.blinkArtifactTpValue;
+
+      const now = Date.now();
+      const notNearBlink = !state.blink.lastDetectedAt || now - state.blink.lastDetectedAt >= JAW_CONFIG.blockAfterBlinkMs;
+      const aboveThreshold = commonRise >= JAW_CONFIG.minCommonRise
+        && tp9Rise >= JAW_CONFIG.minChannelRise
+        && tp10Rise >= JAW_CONFIG.minChannelRise
+        && score >= JAW_CONFIG.minScore
+        && burstCount >= JAW_CONFIG.minBurstCount
+        && disagreement <= Math.max(8, commonRise * JAW_CONFIG.maxDisagreementRatio)
+        && notNearBlink
+        && !blinkArtifactBlocked;
+
+      state.jaw.score = Number.isFinite(score) ? score : 0;
+      state.jaw.commonRise = Number.isFinite(commonRise) ? commonRise : 0;
+      state.jaw.tp9Rise = Number.isFinite(tp9Rise) ? tp9Rise : 0;
+      state.jaw.tp10Rise = Number.isFinite(tp10Rise) ? tp10Rise : 0;
+      state.jaw.disagreement = Number.isFinite(disagreement) ? disagreement : 0;
+      state.jaw.burstCount = Number.isFinite(burstCount) ? burstCount : 0;
+      state.jaw.artifactBlocked = blinkArtifactBlocked;
+      state.jaw.tpMostNegative = Number.isFinite(tpMostNegative) ? tpMostNegative : 0;
+
+      if (aboveThreshold && !state.jaw.aboveThreshold && now - state.jaw.lastDetectedAt >= JAW_CONFIG.cooldownMs) {
+        state.jaw.count += 1;
+        state.jaw.lastDetectedAt = now;
+        state.jaw.lastDetectedClock = new Date(now).toLocaleTimeString();
+        state.jaw.flashUntil = now + JAW_CONFIG.bannerMs;
+        state.jaw.bannerText = `Jaw clench detected at ${state.jaw.lastDetectedClock}`;
+
+        const blinkIsNearJaw = state.blink.lastDetectedAt && (now - state.blink.lastDetectedAt <= JAW_CONFIG.preferJawOverBlinkMs);
+        if (blinkIsNearJaw) {
+          state.blink.count = Math.max(0, state.blink.count - 1);
+          state.blink.lastDetectedAt = 0;
+          state.blink.lastDetectedClock = "";
+          state.blink.flashUntil = 0;
+          state.blink.bannerText = "Blink ignored because a jaw clench was detected at the same time.";
+          state.blink.aboveThreshold = false;
+          state.blink.mode = "suppressed-by-jaw";
+        }
+      }
+      state.jaw.aboveThreshold = aboveThreshold;
     }
 
     function meanFromEnd(series, count, offset = 0) {
@@ -1125,8 +1362,79 @@
       return samples ? Math.sqrt(total / samples) : 0;
     }
 
+    function maxFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(0, end - count);
+      if (end <= start) return 0;
+      let found = false;
+      let max = -Infinity;
+      for (let i = start; i < end; i += 1) {
+        const value = series[i];
+        if (!Number.isFinite(value)) continue;
+        if (value > max) max = value;
+        found = true;
+      }
+      return found ? max : 0;
+    }
+
+    function meanAbsDiffFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(1, end - count);
+      if (end <= start) return 0;
+      let total = 0;
+      let samples = 0;
+      for (let i = start; i < end; i += 1) {
+        const current = series[i];
+        const prev = series[i - 1];
+        if (!Number.isFinite(current) || !Number.isFinite(prev)) continue;
+        total += Math.abs(current - prev);
+        samples += 1;
+      }
+      return samples ? total / samples : 0;
+    }
+
+    function stdAbsDiffFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(1, end - count);
+      if (end <= start) return 0;
+      const diffs = [];
+      for (let i = start; i < end; i += 1) {
+        const current = series[i];
+        const prev = series[i - 1];
+        if (!Number.isFinite(current) || !Number.isFinite(prev)) continue;
+        diffs.push(Math.abs(current - prev));
+      }
+      if (!diffs.length) return 0;
+      const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
+      const variance = diffs.reduce((sum, value) => sum + (value - mean) * (value - mean), 0) / diffs.length;
+      return Math.sqrt(variance);
+    }
+
+    function countAbsDiffAboveFromEnd(series, count, threshold, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(1, end - count);
+      if (end <= start) return 0;
+      let hits = 0;
+      for (let i = start; i < end; i += 1) {
+        const current = series[i];
+        const prev = series[i - 1];
+        if (!Number.isFinite(current) || !Number.isFinite(prev)) continue;
+        if (Math.abs(current - prev) >= threshold) hits += 1;
+      }
+      return hits;
+    }
+
     function formatBlinkLastSeen(timestamp, clockText) {
       if (!timestamp) return "No blink yet";
+      const secondsAgo = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+      if (secondsAgo < 2) return `Just now • ${clockText}`;
+      if (secondsAgo < 60) return `${secondsAgo}s ago • ${clockText}`;
+      const minutesAgo = Math.floor(secondsAgo / 60);
+      return `${minutesAgo}m ago • ${clockText}`;
+    }
+
+    function formatJawLastSeen(timestamp, clockText) {
+      if (!timestamp) return "No jaw clench yet";
       const secondsAgo = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
       if (secondsAgo < 2) return `Just now • ${clockText}`;
       if (secondsAgo < 60) return `${secondsAgo}s ago • ${clockText}`;
@@ -1259,15 +1567,38 @@
       state.blink = {
         count: 0,
         score: 0,
-        commonDip: 0,
-        tp9Dip: 0,
-        tp10Dip: 0,
+        commonRise: 0,
+        af7Rise: 0,
+        af8Rise: 0,
         disagreement: 0,
+        tpActivityRatio: 0,
+        tpBurstCount: 0,
+        tpArtifactCommonDip: 0,
+        tpArtifactMaxDip: 0,
+        tpMostNegative: 0,
+        tpHardBlink: false,
+        mode: "idle",
         aboveThreshold: false,
         lastDetectedAt: 0,
         lastDetectedClock: "",
         flashUntil: 0,
         bannerText: "Blink detector ready.",
+      };
+      state.jaw = {
+        count: 0,
+        score: 0,
+        commonRise: 0,
+        tp9Rise: 0,
+        tp10Rise: 0,
+        disagreement: 0,
+        burstCount: 0,
+        artifactBlocked: false,
+        tpMostNegative: 0,
+        aboveThreshold: false,
+        lastDetectedAt: 0,
+        lastDetectedClock: "",
+        flashUntil: 0,
+        bannerText: "Jaw-clench detector ready.",
       };
       state.error = null;
       renderAllCharts();
