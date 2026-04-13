@@ -233,6 +233,16 @@
       preferJawOverBlinkMs: 350,
       blinkArtifactTpValue: -400,
     };
+    const HEAD_CONFIG = {
+      pitchSign: -1,
+      pitchAlpha: 0.18,
+      velocityAlpha: 0.22,
+      neutralAlpha: 0.025,
+      straightThresholdDeg: 7,
+      tiltThresholdDeg: 14,
+      moveThresholdDps: 18,
+      neutralUpdateVelocityDps: 10,
+    };
 
     class MuseCircularBuffer {
       constructor(size) {
@@ -630,12 +640,14 @@
         this.ppg[1].write(ppgBase + 1100 * Math.sin(2 * Math.PI * 0.19 * t + 0.7));
         this.ppg[2].write(ppgBase + 1500 * Math.sin(2 * Math.PI * 0.25 * t + 1.3));
 
-        this.accelerometer[0].write(0.015 * Math.sin(2 * Math.PI * 0.55 * t));
-        this.accelerometer[1].write(0.010 * Math.cos(2 * Math.PI * 0.42 * t));
-        this.accelerometer[2].write(0.020 * Math.sin(2 * Math.PI * 0.33 * t + 0.5));
+        const mockPitchDeg = 18 * Math.sin(2 * Math.PI * 0.08 * t);
+        const mockPitchRad = mockPitchDeg * (Math.PI / 180);
+        this.accelerometer[0].write(Math.sin(mockPitchRad));
+        this.accelerometer[1].write(0.03 * Math.cos(2 * Math.PI * 0.21 * t));
+        this.accelerometer[2].write(Math.cos(mockPitchRad));
 
         this.gyroscope[0].write(0.8 * Math.sin(2 * Math.PI * 0.35 * t));
-        this.gyroscope[1].write(0.6 * Math.cos(2 * Math.PI * 0.28 * t + 0.2));
+        this.gyroscope[1].write(18 * 2 * Math.PI * 0.08 * Math.cos(2 * Math.PI * 0.08 * t));
         this.gyroscope[2].write(0.4 * Math.sin(2 * Math.PI * 0.18 * t + 1.1));
 
         this.batteryLevel = 94 + 1.2 * Math.sin(2 * Math.PI * 0.01 * t);
@@ -754,13 +766,23 @@
                 <div id="metric-jaw-score" class="metric-value">Waiting…</div>
                 <small>Heuristic based on TP9 + TP10 rough muscle bursts</small>
               </div>
+              <div class="metric">
+                <span class="metric-label">Head pose</span>
+                <div id="metric-head-pose" class="metric-value">Waiting…</div>
+                <small id="metric-head-pitch">Pitch unavailable</small>
+              </div>
+              <div class="metric">
+                <span class="metric-label">Head motion</span>
+                <div id="metric-head-motion" class="metric-value">Waiting…</div>
+                <small id="metric-head-neutral">Neutral not set yet</small>
+              </div>
             </div>
           </div>
 
           <div class="panel span-12">
             <div>
               <h2>EEG</h2>
-              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches AF7 and AF8 for a shared upward spike, while jaw-clench detection watches TP9 and TP10 for a short burst of rough muscle activity.</p>
+              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches AF7 and AF8 for a shared upward spike, jaw-clench detection watches TP9 and TP10 for a short burst of rough muscle activity, and a separate motion detector estimates whether your head is straight, tilted up, or tilted down.</p>
             </div>
           </div>
 
@@ -813,7 +835,7 @@
           <div class="panel span-6 chart-card">
             <div>
               <h2>Accelerometer</h2>
-              <p class="note">Motion on X, Y, and Z axes.</p>
+              <p class="note">Motion on X, Y, and Z axes. The head-pose detector uses these values to estimate nodding / tilt.</p>
             </div>
             <div class="legend" id="legend-accel"></div>
             <div class="canvas-wrap"><canvas id="chart-accel"></canvas></div>
@@ -864,6 +886,10 @@
       metricJawCount: document.querySelector("#metric-jaw-count"),
       metricJawLast: document.querySelector("#metric-jaw-last"),
       metricJawScore: document.querySelector("#metric-jaw-score"),
+      metricHeadPose: document.querySelector("#metric-head-pose"),
+      metricHeadPitch: document.querySelector("#metric-head-pitch"),
+      metricHeadMotion: document.querySelector("#metric-head-motion"),
+      metricHeadNeutral: document.querySelector("#metric-head-neutral"),
       latestValues: document.querySelector("#latest-values"),
       deviceInfo: document.querySelector("#device-info"),
       charts: {
@@ -933,6 +959,17 @@
         lastDetectedClock: "",
         flashUntil: 0,
         bannerText: "Jaw-clench detector idle.",
+      },
+      head: {
+        pitchRawDeg: 0,
+        pitchDeg: 0,
+        neutralPitchDeg: 0,
+        relativePitchDeg: 0,
+        velocityDps: 0,
+        pose: "waiting",
+        motion: "waiting",
+        lastUpdatedAt: 0,
+        initialized: false,
       },
     };
 
@@ -1007,6 +1044,7 @@
         drainMuseBuffers();
         detectBlink();
         detectJawClench();
+        detectHeadPose();
         updateUI();
         renderAllCharts();
         state.rafId = requestAnimationFrame(tick);
@@ -1086,6 +1124,15 @@
           ? "Watching…"
           : "Waiting…";
 
+      els.metricHeadPose.textContent = connected ? formatHeadPose(state.head.pose) : "Waiting…";
+      els.metricHeadPitch.textContent = connected && state.head.initialized
+        ? `Pitch ${formatSignedNumber(state.head.relativePitchDeg, 1)}°`
+        : "Pitch unavailable";
+      els.metricHeadMotion.textContent = connected ? formatHeadMotion(state.head.motion) : "Waiting…";
+      els.metricHeadNeutral.textContent = connected && state.head.initialized
+        ? `Neutral ${formatSignedNumber(state.head.neutralPitchDeg, 1)}°, velocity ${formatSignedNumber(state.head.velocityDps, 1)}°/s`
+        : "Neutral not set yet";
+
       const blinkBannerActive = Date.now() < state.blink.flashUntil;
       els.blinkBanner.textContent = connected
         ? (blinkBannerActive ? state.blink.bannerText : `Blink detector ready. Score ${state.blink.score.toFixed(2)}×.`)
@@ -1133,6 +1180,15 @@
             tpMostNegative: Number(state.jaw.tpMostNegative.toFixed(3)),
             lastDetectedAt: state.jaw.lastDetectedClock || null,
           },
+          head: {
+            pose: state.head.pose,
+            motion: state.head.motion,
+            pitchRawDeg: Number(state.head.pitchRawDeg.toFixed(3)),
+            pitchDeg: Number(state.head.pitchDeg.toFixed(3)),
+            neutralPitchDeg: Number(state.head.neutralPitchDeg.toFixed(3)),
+            relativePitchDeg: Number(state.head.relativePitchDeg.toFixed(3)),
+            velocityDps: Number(state.head.velocityDps.toFixed(3)),
+          },
         },
         null,
         2,
@@ -1143,6 +1199,58 @@
       return Object.fromEntries(
         labels.map((label, index) => [label, Number.isFinite(values[index]) ? Number(values[index].toFixed(3)) : null]),
       );
+    }
+
+    function detectHeadPose() {
+      const [ax, ay, az] = state.latest.accel;
+      if (![ax, ay, az].every(Number.isFinite)) return;
+
+      const mag = Math.sqrt(ax * ax + ay * ay + az * az);
+      if (!Number.isFinite(mag) || mag < 1e-6) return;
+
+      const rawPitchDeg = HEAD_CONFIG.pitchSign * Math.atan2(ax, Math.sqrt(ay * ay + az * az)) * (180 / Math.PI);
+      const now = Date.now();
+
+      if (!state.head.initialized) {
+        state.head.pitchRawDeg = rawPitchDeg;
+        state.head.pitchDeg = rawPitchDeg;
+        state.head.neutralPitchDeg = rawPitchDeg;
+        state.head.relativePitchDeg = 0;
+        state.head.velocityDps = 0;
+        state.head.pose = "straight";
+        state.head.motion = "still";
+        state.head.lastUpdatedAt = now;
+        state.head.initialized = true;
+        return;
+      }
+
+      const smoothedPitch = lerp(state.head.pitchDeg, rawPitchDeg, HEAD_CONFIG.pitchAlpha);
+      const dtSec = Math.max(0.016, (now - state.head.lastUpdatedAt) / 1000);
+      const rawVelocityDps = (smoothedPitch - state.head.pitchDeg) / dtSec;
+      const velocityDps = lerp(state.head.velocityDps, rawVelocityDps, HEAD_CONFIG.velocityAlpha);
+
+      if (Math.abs(velocityDps) <= HEAD_CONFIG.neutralUpdateVelocityDps) {
+        state.head.neutralPitchDeg = lerp(state.head.neutralPitchDeg, smoothedPitch, HEAD_CONFIG.neutralAlpha);
+      }
+
+      const relativePitchDeg = smoothedPitch - state.head.neutralPitchDeg;
+      let pose = "straight";
+      if (relativePitchDeg >= HEAD_CONFIG.tiltThresholdDeg) pose = "tilted up";
+      else if (relativePitchDeg <= -HEAD_CONFIG.tiltThresholdDeg) pose = "tilted down";
+      else if (Math.abs(relativePitchDeg) <= HEAD_CONFIG.straightThresholdDeg) pose = "straight";
+      else pose = state.head.pose === "waiting" ? "straight" : state.head.pose;
+
+      let motion = "still";
+      if (velocityDps >= HEAD_CONFIG.moveThresholdDps) motion = "moving up";
+      else if (velocityDps <= -HEAD_CONFIG.moveThresholdDps) motion = "moving down";
+
+      state.head.pitchRawDeg = rawPitchDeg;
+      state.head.pitchDeg = smoothedPitch;
+      state.head.relativePitchDeg = relativePitchDeg;
+      state.head.velocityDps = velocityDps;
+      state.head.pose = pose;
+      state.head.motion = motion;
+      state.head.lastUpdatedAt = now;
     }
 
     function detectBlink() {
@@ -1600,6 +1708,17 @@
         flashUntil: 0,
         bannerText: "Jaw-clench detector ready.",
       };
+      state.head = {
+        pitchRawDeg: 0,
+        pitchDeg: 0,
+        neutralPitchDeg: 0,
+        relativePitchDeg: 0,
+        velocityDps: 0,
+        pose: "waiting",
+        motion: "waiting",
+        lastUpdatedAt: 0,
+        initialized: false,
+      };
       state.error = null;
       renderAllCharts();
       updateUI();
@@ -1629,6 +1748,33 @@
       if (abs >= 100) return value.toFixed(1);
       if (abs >= 10) return value.toFixed(2);
       return value.toFixed(3);
+    }
+
+    function formatSignedNumber(value, digits = 1) {
+      if (!Number.isFinite(value)) return "—";
+      return `${value >= 0 ? "+" : ""}${value.toFixed(digits)}`;
+    }
+
+    function formatHeadPose(value) {
+      if (!value || value === "waiting") return "Waiting…";
+      if (value === "straight") return "Straight";
+      if (value === "tilted up") return "Tilted up";
+      if (value === "tilted down") return "Tilted down";
+      return value;
+    }
+
+    function formatHeadMotion(value) {
+      if (!value || value === "waiting") return "Waiting…";
+      if (value === "still") return "Still";
+      if (value === "moving up") return "Moving up";
+      if (value === "moving down") return "Moving down";
+      return value;
+    }
+
+    function lerp(a, b, alpha) {
+      if (!Number.isFinite(a)) return b;
+      if (!Number.isFinite(b)) return a;
+      return a + (b - a) * alpha;
     }
   </script>
 </body>
