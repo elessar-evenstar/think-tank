@@ -201,37 +201,19 @@
     const PPG_CHANNELS = ["Ambient", "Infrared", "Red"];
     const XYZ = ["X", "Y", "Z"];
     const COLORS = ["#6cc3ff", "#8effc1", "#ffd36c", "#ff8ea1", "#c49dff"];
-    const MAX_POINTS = { eeg: 300, ppg: 240, accel: 180, gyro: 180 };
+    const MAX_POINTS = { eeg: 900, ppg: 240, accel: 180, gyro: 180 };
     const BLINK_CONFIG = {
-      recentPoints: 12,
+      recentPoints: 14,
       baselinePoints: 96,
-      minCommonRise: 34,
-      minScore: 3.0,
-      maxDisagreementRatio: 0.8,
-      minChannelRise: 14,
-      minPeakProminence: 10.5,
-      maxTpActivityRatio: 2.2,
-      maxTpBurstCount: 5,
+      minCommonDip: 70,
+      minScore: 2.8,
+      maxDisagreementRatio: 0.95,
+      minChannelDip: 35,
       tpHardBlinkValue: -400,
-      tpHardBlinkCommonDip: 0,
       cooldownMs: 520,
-      releaseCommonRise: 12,
-      releaseScore: 1.6,
+      releaseCommonDip: 28,
+      releaseScore: 1.2,
       bannerMs: 1200,
-    };
-    const JAW_CONFIG = {
-      recentPoints: 28,
-      baselinePoints: 120,
-      minCommonRise: 7,
-      minScore: 2.2,
-      maxDisagreementRatio: 1.1,
-      minChannelRise: 4,
-      minBurstCount: 8,
-      cooldownMs: 850,
-      bannerMs: 1400,
-      blockAfterBlinkMs: 250,
-      preferJawOverBlinkMs: 350,
-      blinkArtifactTpValue: -400,
     };
     const HEAD_CONFIG = {
       pitchSign: -1,
@@ -242,6 +224,17 @@
       tiltThresholdDeg: 14,
       moveThresholdDps: 18,
       neutralUpdateVelocityDps: 10,
+    };
+    const FOCUS_CONFIG = {
+      sampleRate: 256,
+      windowPoints: 512,
+      computeIntervalMs: 600,
+      smoothAlpha: 0.06,
+      thetaBand: [4, 7],
+      alphaBand: [8, 12],
+      betaBand: [13, 30],
+      artifactAbsThreshold: 220,
+      recentBlinkPenaltyMs: 900,
     };
 
     class MuseCircularBuffer {
@@ -665,17 +658,11 @@
     function buildMockCsvUrl(totalMs = 12000, dt = 4) {
       const rows = ["Timestamp (ms),TP9 (left ear),AF7 (left forehead),AF8 (right forehead),TP10 (right ear)"];
       const blinkCenters = [2500, 6100, 9800];
-      const jawCenters = [4300, 7900];
 
-      const blinkWave = (ms, center, amplitude = 62) => {
+      const blinkWave = (ms, center, amplitude = 320) => {
         const x1 = (ms - center) / 34;
-        const x2 = (ms - (center + 28)) / 52;
-        return amplitude * Math.exp(-0.5 * x1 * x1) + 0.22 * amplitude * Math.exp(-0.5 * x2 * x2);
-      };
-
-      const jawWave = (ms, center, amplitude = 24, freqHz = 38) => {
-        const envelope = Math.exp(-0.5 * ((ms - center) / 120) * ((ms - center) / 120));
-        return amplitude * Math.sin(2 * Math.PI * freqHz * (ms - center) / 1000) * envelope;
+        const x2 = (ms - (center + 22)) / 48;
+        return amplitude * Math.exp(-0.5 * x1 * x1) + 0.18 * amplitude * Math.exp(-0.5 * x2 * x2);
       };
 
       for (let ms = 0; ms <= totalMs; ms += dt) {
@@ -688,13 +675,10 @@
         let blink = 0;
         for (const center of blinkCenters) blink += blinkWave(ms, center);
 
-        let jaw = 0;
-        for (const center of jawCenters) jaw += jawWave(ms, center);
-
-        const tp9 = theta + alpha + drift - blink * 0.08 + jaw * 1.1;
-        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift + blink * 1.0 + jaw * 0.35;
-        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift + blink * 0.92 - jaw * 0.32;
-        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift - blink * 0.06 - jaw * 1.05;
+        const tp9 = theta + alpha + drift - blink * 1.0;
+        const af7 = 0.9 * alpha + 0.7 * beta + 0.8 * drift + blink * 0.14;
+        const af8 = 0.85 * alpha - 0.6 * beta - 0.6 * drift + blink * 0.12;
+        const tp10 = 1.05 * theta + 0.8 * alpha + 0.5 * drift - blink * 0.96;
         rows.push(`${ms},${tp9.toFixed(6)},${af7.toFixed(6)},${af8.toFixed(6)},${tp10.toFixed(6)}`);
       }
       return URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv" }));
@@ -707,7 +691,7 @@
           <h1>Muse live stream viewer</h1>
           <p>
             Open this file directly in a Web Bluetooth browser, connect a Muse device, and watch live EEG,
-            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data, including synthetic AF forehead blinks and jaw-like muscle bursts so you can test both detectors.
+            PPG, accelerometer, and gyroscope streams update in the page. Mock mode uses bundled sample data, including synthetic TP blink-like downward dips, gentle head motion, and simple focus-index changes so you can test the detectors.
           </p>
           <div class="controls">
             <button id="connect-real" class="primary">Connect Muse</button>
@@ -719,7 +703,6 @@
             <span id="status-text">Idle</span>
           </div>
           <div id="blink-banner" class="blink-banner" aria-live="polite">Blink detector idle.</div>
-          <div id="jaw-banner" class="jaw-banner" aria-live="polite">Jaw-clench detector idle.</div>
         </section>
 
         <section class="grid">
@@ -754,17 +737,12 @@
               <div class="metric">
                 <span class="metric-label">Blink detector</span>
                 <div id="metric-blink-score" class="metric-value">Waiting…</div>
-                <small>Heuristic based on TP9 + TP10 downward dips</small>
+                <small>Heuristic based on big TP9 + TP10 downward dips</small>
               </div>
               <div class="metric">
-                <span class="metric-label">Jaw clenches detected</span>
-                <div id="metric-jaw-count" class="metric-value">0</div>
-                <small id="metric-jaw-last">No jaw clench yet</small>
-              </div>
-              <div class="metric">
-                <span class="metric-label">Jaw-clench detector</span>
-                <div id="metric-jaw-score" class="metric-value">Waiting…</div>
-                <small>Heuristic based on TP9 + TP10 rough muscle bursts</small>
+                <span class="metric-label">Focus index</span>
+                <div id="metric-focus-index" class="metric-value">Waiting…</div>
+                <small id="metric-focus-level">Heuristic from EEG band balance</small>
               </div>
               <div class="metric">
                 <span class="metric-label">Head pose</span>
@@ -782,7 +760,7 @@
           <div class="panel span-12">
             <div>
               <h2>EEG</h2>
-              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches AF7 and AF8 for a shared upward spike, jaw-clench detection watches TP9 and TP10 for a short burst of rough muscle activity, and a separate motion detector estimates whether your head is straight, tilted up, or tilted down.</p>
+              <p class="note">Each EEG electrode is plotted on its own scrolling chart. Blink detection watches TP9 and TP10 for big shared downward dips, a separate focus index estimates steady attention from EEG band balance, and a motion detector estimates whether your head is straight, tilted up, or tilted down.</p>
             </div>
           </div>
 
@@ -873,7 +851,6 @@
       statusDot: document.querySelector("#status-dot"),
       statusText: document.querySelector("#status-text"),
       blinkBanner: document.querySelector("#blink-banner"),
-      jawBanner: document.querySelector("#jaw-banner"),
       metricConnection: document.querySelector("#metric-connection"),
       metricMode: document.querySelector("#metric-mode"),
       metricBattery: document.querySelector("#metric-battery"),
@@ -883,9 +860,8 @@
       metricBlinkCount: document.querySelector("#metric-blink-count"),
       metricBlinkLast: document.querySelector("#metric-blink-last"),
       metricBlinkScore: document.querySelector("#metric-blink-score"),
-      metricJawCount: document.querySelector("#metric-jaw-count"),
-      metricJawLast: document.querySelector("#metric-jaw-last"),
-      metricJawScore: document.querySelector("#metric-jaw-score"),
+      metricFocusIndex: document.querySelector("#metric-focus-index"),
+      metricFocusLevel: document.querySelector("#metric-focus-level"),
       metricHeadPose: document.querySelector("#metric-head-pose"),
       metricHeadPitch: document.querySelector("#metric-head-pitch"),
       metricHeadMotion: document.querySelector("#metric-head-motion"),
@@ -927,16 +903,12 @@
       blink: {
         count: 0,
         score: 0,
-        commonRise: 0,
-        af7Rise: 0,
-        af8Rise: 0,
+        commonDip: 0,
+        tp9Dip: 0,
+        tp10Dip: 0,
         disagreement: 0,
-        tpActivityRatio: 0,
-        tpBurstCount: 0,
-        tpArtifactCommonDip: 0,
-        tpArtifactMaxDip: 0,
         tpMostNegative: 0,
-        tpHardBlink: false,
+        hardBlink: false,
         mode: "idle",
         aboveThreshold: false,
         lastDetectedAt: 0,
@@ -944,21 +916,15 @@
         flashUntil: 0,
         bannerText: "Blink detector idle.",
       },
-      jaw: {
-        count: 0,
-        score: 0,
-        commonRise: 0,
-        tp9Rise: 0,
-        tp10Rise: 0,
-        disagreement: 0,
-        burstCount: 0,
-        artifactBlocked: false,
-        tpMostNegative: 0,
-        aboveThreshold: false,
-        lastDetectedAt: 0,
-        lastDetectedClock: "",
-        flashUntil: 0,
-        bannerText: "Jaw-clench detector idle.",
+      focus: {
+        index: 50,
+        level: "calibrating",
+        thetaPower: 0,
+        alphaPower: 0,
+        betaPower: 0,
+        ratio: 0,
+        signalQuality: "waiting",
+        lastComputedAt: 0,
       },
       head: {
         pitchRawDeg: 0,
@@ -1043,7 +1009,7 @@
         if (!state.muse) return;
         drainMuseBuffers();
         detectBlink();
-        detectJawClench();
+        detectFocus();
         detectHeadPose();
         updateUI();
         renderAllCharts();
@@ -1116,34 +1082,19 @@
           ? "Watching…"
           : "Waiting…";
 
-      els.metricJawCount.textContent = String(state.jaw.count);
-      els.metricJawLast.textContent = formatJawLastSeen(state.jaw.lastDetectedAt, state.jaw.lastDetectedClock);
-      els.metricJawScore.textContent = Number.isFinite(state.jaw.score) && state.jaw.score > 0
-        ? `${state.jaw.score.toFixed(2)}×`
-        : connected
-          ? "Watching…"
-          : "Waiting…";
+      els.metricFocusIndex.textContent = connected || state.focus.lastComputedAt
+        ? `${Math.round(state.focus.index)}`
+        : "Waiting…";
+      els.metricFocusLevel.textContent = connected || state.focus.lastComputedAt
+        ? `${capitalizeWords(state.focus.level)} • β ${(state.focus.betaPower).toFixed(1)} / (α+θ) ${(state.focus.alphaPower + state.focus.thetaPower).toFixed(1)}`
+        : "Heuristic from EEG band balance";
 
-      els.metricHeadPose.textContent = connected ? formatHeadPose(state.head.pose) : "Waiting…";
-      els.metricHeadPitch.textContent = connected && state.head.initialized
-        ? `Pitch ${formatSignedNumber(state.head.relativePitchDeg, 1)}°`
-        : "Pitch unavailable";
-      els.metricHeadMotion.textContent = connected ? formatHeadMotion(state.head.motion) : "Waiting…";
-      els.metricHeadNeutral.textContent = connected && state.head.initialized
-        ? `Neutral ${formatSignedNumber(state.head.neutralPitchDeg, 1)}°, velocity ${formatSignedNumber(state.head.velocityDps, 1)}°/s`
-        : "Neutral not set yet";
-
-      const blinkBannerActive = Date.now() < state.blink.flashUntil;
-      els.blinkBanner.textContent = connected
-        ? (blinkBannerActive ? state.blink.bannerText : `Blink detector ready. Score ${state.blink.score.toFixed(2)}×.`)
-        : "Blink detector idle.";
-      els.blinkBanner.classList.toggle("active", blinkBannerActive);
-
-      const jawBannerActive = Date.now() < state.jaw.flashUntil;
-      els.jawBanner.textContent = connected
-        ? (jawBannerActive ? state.jaw.bannerText : `Jaw-clench detector ready. Score ${state.jaw.score.toFixed(2)}×.`)
-        : "Jaw-clench detector idle.";
-      els.jawBanner.classList.toggle("active", jawBannerActive);
+      els.metricHeadPose.textContent = connected || state.head.initialized
+        ? formatHeadPose(state.head.pose)
+        : "Waiting…";
+      els.metricHeadMotion.textContent = connected || state.head.initialized
+        ? formatHeadMotion(state.head.motion)
+        : "Waiting…";
 
       els.deviceInfo.textContent = JSON.stringify(muse?.info ?? {}, null, 2);
       els.latestValues.textContent = JSON.stringify(
@@ -1155,30 +1106,23 @@
           blink: {
             count: state.blink.count,
             score: Number(state.blink.score.toFixed(3)),
-            commonRise: Number(state.blink.commonRise.toFixed(3)),
-            af7Rise: Number(state.blink.af7Rise.toFixed(3)),
-            af8Rise: Number(state.blink.af8Rise.toFixed(3)),
+            commonDip: Number(state.blink.commonDip.toFixed(3)),
+            tp9Dip: Number(state.blink.tp9Dip.toFixed(3)),
+            tp10Dip: Number(state.blink.tp10Dip.toFixed(3)),
             disagreement: Number(state.blink.disagreement.toFixed(3)),
-            tpActivityRatio: Number(state.blink.tpActivityRatio.toFixed(3)),
-            tpBurstCount: Number(state.blink.tpBurstCount.toFixed(3)),
-            tpArtifactCommonDip: Number(state.blink.tpArtifactCommonDip.toFixed(3)),
-            tpArtifactMaxDip: Number(state.blink.tpArtifactMaxDip.toFixed(3)),
             tpMostNegative: Number(state.blink.tpMostNegative.toFixed(3)),
-            tpHardBlink: state.blink.tpHardBlink,
+            hardBlink: state.blink.hardBlink,
             mode: state.blink.mode,
             lastDetectedAt: state.blink.lastDetectedClock || null,
           },
-          jaw: {
-            count: state.jaw.count,
-            score: Number(state.jaw.score.toFixed(3)),
-            commonRise: Number(state.jaw.commonRise.toFixed(3)),
-            tp9Rise: Number(state.jaw.tp9Rise.toFixed(3)),
-            tp10Rise: Number(state.jaw.tp10Rise.toFixed(3)),
-            disagreement: Number(state.jaw.disagreement.toFixed(3)),
-            burstCount: Number(state.jaw.burstCount.toFixed(3)),
-            artifactBlocked: state.jaw.artifactBlocked,
-            tpMostNegative: Number(state.jaw.tpMostNegative.toFixed(3)),
-            lastDetectedAt: state.jaw.lastDetectedClock || null,
+          focus: {
+            index: Number(state.focus.index.toFixed(3)),
+            level: state.focus.level,
+            thetaPower: Number(state.focus.thetaPower.toFixed(3)),
+            alphaPower: Number(state.focus.alphaPower.toFixed(3)),
+            betaPower: Number(state.focus.betaPower.toFixed(3)),
+            ratio: Number(state.focus.ratio.toFixed(3)),
+            signalQuality: state.focus.signalQuality,
           },
           head: {
             pose: state.head.pose,
@@ -1199,6 +1143,48 @@
       return Object.fromEntries(
         labels.map((label, index) => [label, Number.isFinite(values[index]) ? Number(values[index].toFixed(3)) : null]),
       );
+    }
+
+    function detectFocus() {
+      const now = Date.now();
+      if (now - state.focus.lastComputedAt < FOCUS_CONFIG.computeIntervalMs) return;
+
+      const [, af7, af8] = state.series.eeg;
+      const needed = FOCUS_CONFIG.windowPoints + 8;
+      if (Math.min(af7.length, af8.length) < needed) return;
+
+      const af7Window = windowFromEnd(af7, FOCUS_CONFIG.windowPoints);
+      const af8Window = windowFromEnd(af8, FOCUS_CONFIG.windowPoints);
+      if (!af7Window.length || !af8Window.length) return;
+
+      const combined = combineWindows([af7Window, af8Window]);
+      const prepped = applyHannWindow(removeMean(combined));
+      const thetaPower = estimateBandPower(prepped, FOCUS_CONFIG.sampleRate, FOCUS_CONFIG.thetaBand[0], FOCUS_CONFIG.thetaBand[1]);
+      const alphaPower = estimateBandPower(prepped, FOCUS_CONFIG.sampleRate, FOCUS_CONFIG.alphaBand[0], FOCUS_CONFIG.alphaBand[1]);
+      const betaPower = estimateBandPower(prepped, FOCUS_CONFIG.sampleRate, FOCUS_CONFIG.betaBand[0], FOCUS_CONFIG.betaBand[1]);
+
+      const denominator = alphaPower + thetaPower + 1e-6;
+      const ratio = betaPower / denominator;
+      const ratioClamped = clamp(ratio, 0.2, 2.6);
+      let rawIndex = 100 * (ratioClamped - 0.2) / (2.6 - 0.2);
+
+      const recentMaxAbs = Math.max(maxAbsFromEnd(af7, 48), maxAbsFromEnd(af8, 48));
+      const artifactPenalty = recentMaxAbs > FOCUS_CONFIG.artifactAbsThreshold
+        ? clamp((recentMaxAbs - FOCUS_CONFIG.artifactAbsThreshold) / 220, 0, 0.55)
+        : 0;
+      const blinkPenalty = now - state.blink.lastDetectedAt <= FOCUS_CONFIG.recentBlinkPenaltyMs ? 0.18 : 0;
+      const motionPenalty = clamp(Math.abs(state.head.velocityDps || 0) / 160, 0, 0.2);
+      rawIndex = rawIndex * (1 - artifactPenalty) * (1 - blinkPenalty) * (1 - motionPenalty);
+      rawIndex = clamp(rawIndex, 0, 100);
+
+      state.focus.index = lerp(state.focus.index, rawIndex, FOCUS_CONFIG.smoothAlpha);
+      state.focus.thetaPower = thetaPower;
+      state.focus.alphaPower = alphaPower;
+      state.focus.betaPower = betaPower;
+      state.focus.ratio = ratio;
+      state.focus.signalQuality = artifactPenalty >= 0.45 ? "noisy" : (artifactPenalty >= 0.18 ? "fair" : "good");
+      state.focus.level = focusLevelFromIndex(state.focus.index);
+      state.focus.lastComputedAt = now;
     }
 
     function detectHeadPose() {
@@ -1254,91 +1240,51 @@
     }
 
     function detectBlink() {
-      const [tp9, af7, af8, tp10] = state.series.eeg;
+      const [tp9, , , tp10] = state.series.eeg;
       const minLength = BLINK_CONFIG.baselinePoints + BLINK_CONFIG.recentPoints + 2;
-      const available = Math.min(tp9.length, af7.length, af8.length, tp10.length);
+      const available = Math.min(tp9.length, tp10.length);
       if (available < minLength) return;
-
-      const af7Baseline = meanFromEnd(af7, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
-      const af8Baseline = meanFromEnd(af8, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
-      const af7RecentMax = maxFromEnd(af7, BLINK_CONFIG.recentPoints, 0);
-      const af8RecentMax = maxFromEnd(af8, BLINK_CONFIG.recentPoints, 0);
-      const af7RecentMean = meanFromEnd(af7, BLINK_CONFIG.recentPoints, 0);
-      const af8RecentMean = meanFromEnd(af8, BLINK_CONFIG.recentPoints, 0);
-
-      const af7Rise = Math.max(0, af7RecentMax - af7Baseline);
-      const af8Rise = Math.max(0, af8RecentMax - af8Baseline);
-      const commonRise = (af7Rise + af8Rise) / 2;
-      const disagreement = Math.abs(af7Rise - af8Rise);
-      const af7Prominence = Math.max(0, af7RecentMax - af7RecentMean);
-      const af8Prominence = Math.max(0, af8RecentMax - af8RecentMean);
-      const peakProminence = Math.min(af7Prominence, af8Prominence);
-      const noise = Math.max(
-        8,
-        (stdFromEnd(af7, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
-          + stdFromEnd(af8, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)) / 2,
-      );
-      const afScore = commonRise / noise;
-
-      const tp9Activity = meanAbsDiffFromEnd(tp9, BLINK_CONFIG.recentPoints, 0);
-      const tp10Activity = meanAbsDiffFromEnd(tp10, BLINK_CONFIG.recentPoints, 0);
-      const tpBaselineActivity = (
-        meanAbsDiffFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
-        + meanAbsDiffFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
-      ) / 2;
-      const tpRecentActivity = (tp9Activity + tp10Activity) / 2;
-      const tpActivityRatio = tpRecentActivity / Math.max(3, tpBaselineActivity);
-
-      const tp9DiffNoise = stdAbsDiffFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
-      const tp10DiffNoise = stdAbsDiffFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
-      const tp9BurstThreshold = Math.max(7, meanAbsDiffFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints) + tp9DiffNoise * 1.4);
-      const tp10BurstThreshold = Math.max(7, meanAbsDiffFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints) + tp10DiffNoise * 1.4);
-      const tpBurstCount = (
-        countAbsDiffAboveFromEnd(tp9, BLINK_CONFIG.recentPoints, tp9BurstThreshold, 0)
-        + countAbsDiffAboveFromEnd(tp10, BLINK_CONFIG.recentPoints, tp10BurstThreshold, 0)
-      ) / 2;
 
       const tp9Baseline = meanFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
       const tp10Baseline = meanFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
       const tp9RecentMin = minFromEnd(tp9, BLINK_CONFIG.recentPoints, 0);
       const tp10RecentMin = minFromEnd(tp10, BLINK_CONFIG.recentPoints, 0);
-      const tp9ArtifactDip = Math.max(0, tp9Baseline - tp9RecentMin);
-      const tp10ArtifactDip = Math.max(0, tp10Baseline - tp10RecentMin);
-      const tpArtifactCommonDip = (tp9ArtifactDip + tp10ArtifactDip) / 2;
-      const tpArtifactMaxDip = Math.max(tp9ArtifactDip, tp10ArtifactDip);
+
+      const tp9Dip = Math.max(0, tp9Baseline - tp9RecentMin);
+      const tp10Dip = Math.max(0, tp10Baseline - tp10RecentMin);
+      const commonDip = (tp9Dip + tp10Dip) / 2;
+      const disagreement = Math.abs(tp9Dip - tp10Dip);
+      const noise = Math.max(
+        12,
+        (stdFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)
+          + stdFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints)) / 2,
+      );
+      const score = commonDip / noise;
       const tpMostNegative = Math.min(tp9RecentMin, tp10RecentMin);
-      const tpHardBlink = tpMostNegative <= BLINK_CONFIG.tpHardBlinkValue;
+      const hardBlink = tpMostNegative <= BLINK_CONFIG.tpHardBlinkValue;
 
-      const afBlinkEnter = commonRise >= BLINK_CONFIG.minCommonRise
-        && af7Rise >= BLINK_CONFIG.minChannelRise
-        && af8Rise >= BLINK_CONFIG.minChannelRise
-        && peakProminence >= BLINK_CONFIG.minPeakProminence
-        && afScore >= BLINK_CONFIG.minScore
-        && disagreement <= Math.max(10, commonRise * BLINK_CONFIG.maxDisagreementRatio)
-        && tpActivityRatio <= BLINK_CONFIG.maxTpActivityRatio
-        && tpBurstCount <= BLINK_CONFIG.maxTpBurstCount;
+      const dipBlink = commonDip >= BLINK_CONFIG.minCommonDip
+        && tp9Dip >= BLINK_CONFIG.minChannelDip
+        && tp10Dip >= BLINK_CONFIG.minChannelDip
+        && score >= BLINK_CONFIG.minScore
+        && disagreement <= Math.max(14, commonDip * BLINK_CONFIG.maxDisagreementRatio);
 
-      const enterThreshold = tpHardBlink || afBlinkEnter;
+      const enterThreshold = hardBlink || dipBlink;
       const stayAbove = state.blink.aboveThreshold && (
-        tpHardBlink
-        || (commonRise >= BLINK_CONFIG.releaseCommonRise && afScore >= BLINK_CONFIG.releaseScore)
+        hardBlink
+        || (commonDip >= BLINK_CONFIG.releaseCommonDip && score >= BLINK_CONFIG.releaseScore)
       );
       const aboveThreshold = enterThreshold || stayAbove;
-      const score = tpHardBlink ? Math.max(afScore, tpArtifactCommonDip / 35, Math.max(0, (-tpMostNegative - 300) / 50)) : afScore;
-      const blinkMode = tpHardBlink ? "tp-hard" : (afBlinkEnter ? "af-soft" : (aboveThreshold ? state.blink.mode : "idle"));
+      const mode = hardBlink ? "tp-hard" : (dipBlink ? "tp-dip" : (aboveThreshold ? state.blink.mode : "idle"));
 
       state.blink.score = Number.isFinite(score) ? score : 0;
-      state.blink.commonRise = Number.isFinite(commonRise) ? commonRise : 0;
-      state.blink.af7Rise = Number.isFinite(af7Rise) ? af7Rise : 0;
-      state.blink.af8Rise = Number.isFinite(af8Rise) ? af8Rise : 0;
+      state.blink.commonDip = Number.isFinite(commonDip) ? commonDip : 0;
+      state.blink.tp9Dip = Number.isFinite(tp9Dip) ? tp9Dip : 0;
+      state.blink.tp10Dip = Number.isFinite(tp10Dip) ? tp10Dip : 0;
       state.blink.disagreement = Number.isFinite(disagreement) ? disagreement : 0;
-      state.blink.tpActivityRatio = Number.isFinite(tpActivityRatio) ? tpActivityRatio : 0;
-      state.blink.tpBurstCount = Number.isFinite(tpBurstCount) ? tpBurstCount : 0;
-      state.blink.tpArtifactCommonDip = Number.isFinite(tpArtifactCommonDip) ? tpArtifactCommonDip : 0;
-      state.blink.tpArtifactMaxDip = Number.isFinite(tpArtifactMaxDip) ? tpArtifactMaxDip : 0;
       state.blink.tpMostNegative = Number.isFinite(tpMostNegative) ? tpMostNegative : 0;
-      state.blink.tpHardBlink = tpHardBlink;
-      state.blink.mode = blinkMode;
+      state.blink.hardBlink = hardBlink;
+      state.blink.mode = mode;
 
       const now = Date.now();
       if (enterThreshold && !state.blink.aboveThreshold && now - state.blink.lastDetectedAt >= BLINK_CONFIG.cooldownMs) {
@@ -1346,82 +1292,9 @@
         state.blink.lastDetectedAt = now;
         state.blink.lastDetectedClock = new Date(now).toLocaleTimeString();
         state.blink.flashUntil = now + BLINK_CONFIG.bannerMs;
-        state.blink.bannerText = `Blink detected at ${state.blink.lastDetectedClock} (${blinkMode})`;
+        state.blink.bannerText = `Blink detected at ${state.blink.lastDetectedClock} (${mode})`;
       }
       state.blink.aboveThreshold = aboveThreshold;
-    }
-
-    function detectJawClench() {
-      const [tp9, af7, af8, tp10] = state.series.eeg;
-      const minLength = JAW_CONFIG.baselinePoints + JAW_CONFIG.recentPoints + 3;
-      const available = Math.min(tp9.length, af7.length, af8.length, tp10.length);
-      if (available < minLength) return;
-
-      const tp9BaselineActivity = meanAbsDiffFromEnd(tp9, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
-      const tp10BaselineActivity = meanAbsDiffFromEnd(tp10, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
-      const tp9RecentActivity = meanAbsDiffFromEnd(tp9, JAW_CONFIG.recentPoints, 0);
-      const tp10RecentActivity = meanAbsDiffFromEnd(tp10, JAW_CONFIG.recentPoints, 0);
-
-      const tp9Rise = Math.max(0, tp9RecentActivity - tp9BaselineActivity);
-      const tp10Rise = Math.max(0, tp10RecentActivity - tp10BaselineActivity);
-      const commonRise = (tp9Rise + tp10Rise) / 2;
-      const disagreement = Math.abs(tp9Rise - tp10Rise);
-
-      const tp9Noise = stdAbsDiffFromEnd(tp9, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
-      const tp10Noise = stdAbsDiffFromEnd(tp10, JAW_CONFIG.baselinePoints, JAW_CONFIG.recentPoints);
-      const noise = Math.max(2.5, (tp9Noise + tp10Noise) / 2);
-      const score = commonRise / noise;
-
-      const tp9BurstThreshold = Math.max(8, tp9BaselineActivity + tp9Noise * 1.5);
-      const tp10BurstThreshold = Math.max(8, tp10BaselineActivity + tp10Noise * 1.5);
-      const tp9BurstCount = countAbsDiffAboveFromEnd(tp9, JAW_CONFIG.recentPoints, tp9BurstThreshold, 0);
-      const tp10BurstCount = countAbsDiffAboveFromEnd(tp10, JAW_CONFIG.recentPoints, tp10BurstThreshold, 0);
-      const burstCount = (tp9BurstCount + tp10BurstCount) / 2;
-
-      const tp9RecentMin = minFromEnd(tp9, JAW_CONFIG.recentPoints, 0);
-      const tp10RecentMin = minFromEnd(tp10, JAW_CONFIG.recentPoints, 0);
-      const tpMostNegative = Math.min(tp9RecentMin, tp10RecentMin);
-      const blinkArtifactBlocked = tpMostNegative <= JAW_CONFIG.blinkArtifactTpValue;
-
-      const now = Date.now();
-      const notNearBlink = !state.blink.lastDetectedAt || now - state.blink.lastDetectedAt >= JAW_CONFIG.blockAfterBlinkMs;
-      const aboveThreshold = commonRise >= JAW_CONFIG.minCommonRise
-        && tp9Rise >= JAW_CONFIG.minChannelRise
-        && tp10Rise >= JAW_CONFIG.minChannelRise
-        && score >= JAW_CONFIG.minScore
-        && burstCount >= JAW_CONFIG.minBurstCount
-        && disagreement <= Math.max(8, commonRise * JAW_CONFIG.maxDisagreementRatio)
-        && notNearBlink
-        && !blinkArtifactBlocked;
-
-      state.jaw.score = Number.isFinite(score) ? score : 0;
-      state.jaw.commonRise = Number.isFinite(commonRise) ? commonRise : 0;
-      state.jaw.tp9Rise = Number.isFinite(tp9Rise) ? tp9Rise : 0;
-      state.jaw.tp10Rise = Number.isFinite(tp10Rise) ? tp10Rise : 0;
-      state.jaw.disagreement = Number.isFinite(disagreement) ? disagreement : 0;
-      state.jaw.burstCount = Number.isFinite(burstCount) ? burstCount : 0;
-      state.jaw.artifactBlocked = blinkArtifactBlocked;
-      state.jaw.tpMostNegative = Number.isFinite(tpMostNegative) ? tpMostNegative : 0;
-
-      if (aboveThreshold && !state.jaw.aboveThreshold && now - state.jaw.lastDetectedAt >= JAW_CONFIG.cooldownMs) {
-        state.jaw.count += 1;
-        state.jaw.lastDetectedAt = now;
-        state.jaw.lastDetectedClock = new Date(now).toLocaleTimeString();
-        state.jaw.flashUntil = now + JAW_CONFIG.bannerMs;
-        state.jaw.bannerText = `Jaw clench detected at ${state.jaw.lastDetectedClock}`;
-
-        const blinkIsNearJaw = state.blink.lastDetectedAt && (now - state.blink.lastDetectedAt <= JAW_CONFIG.preferJawOverBlinkMs);
-        if (blinkIsNearJaw) {
-          state.blink.count = Math.max(0, state.blink.count - 1);
-          state.blink.lastDetectedAt = 0;
-          state.blink.lastDetectedClock = "";
-          state.blink.flashUntil = 0;
-          state.blink.bannerText = "Blink ignored because a jaw clench was detected at the same time.";
-          state.blink.aboveThreshold = false;
-          state.blink.mode = "suppressed-by-jaw";
-        }
-      }
-      state.jaw.aboveThreshold = aboveThreshold;
     }
 
     function meanFromEnd(series, count, offset = 0) {
@@ -1530,6 +1403,94 @@
         if (Math.abs(current - prev) >= threshold) hits += 1;
       }
       return hits;
+    }
+
+    function windowFromEnd(series, count, offset = 0) {
+      const end = Math.max(0, series.length - offset);
+      const start = Math.max(0, end - count);
+      return series.slice(start, end).filter(Number.isFinite);
+    }
+
+    function combineWindows(windows) {
+      const minLength = Math.min(...windows.map((window) => window.length));
+      if (!Number.isFinite(minLength) || minLength <= 0) return [];
+      const combined = new Array(minLength).fill(0);
+      for (let i = 0; i < minLength; i += 1) {
+        let total = 0;
+        let samples = 0;
+        for (const window of windows) {
+          const value = window[window.length - minLength + i];
+          if (!Number.isFinite(value)) continue;
+          total += value;
+          samples += 1;
+        }
+        combined[i] = samples ? total / samples : 0;
+      }
+      return combined;
+    }
+
+    function removeMean(series) {
+      if (!series.length) return [];
+      const mean = series.reduce((sum, value) => sum + value, 0) / series.length;
+      return series.map((value) => value - mean);
+    }
+
+    function applyHannWindow(series) {
+      const n = series.length;
+      if (n <= 1) return series.slice();
+      return series.map((value, index) => {
+        const w = 0.5 * (1 - Math.cos((2 * Math.PI * index) / (n - 1)));
+        return value * w;
+      });
+    }
+
+    function estimateBandPower(series, sampleRate, lowHz, highHz) {
+      const n = series.length;
+      if (!n) return 0;
+      let power = 0;
+      const minK = Math.max(1, Math.ceil((lowHz * n) / sampleRate));
+      const maxK = Math.max(minK, Math.floor((highHz * n) / sampleRate));
+      for (let k = minK; k <= maxK; k += 1) {
+        let re = 0;
+        let im = 0;
+        for (let i = 0; i < n; i += 1) {
+          const angle = (2 * Math.PI * k * i) / n;
+          re += series[i] * Math.cos(angle);
+          im -= series[i] * Math.sin(angle);
+        }
+        power += (re * re + im * im) / (n * n);
+      }
+      return power;
+    }
+
+    function maxAbsFromEnd(series, count, offset = 0) {
+      const end = series.length - offset;
+      const start = Math.max(0, end - count);
+      if (end <= start) return 0;
+      let found = false;
+      let maxAbs = 0;
+      for (let i = start; i < end; i += 1) {
+        const value = series[i];
+        if (!Number.isFinite(value)) continue;
+        const absValue = Math.abs(value);
+        if (absValue > maxAbs) maxAbs = absValue;
+        found = true;
+      }
+      return found ? maxAbs : 0;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function focusLevelFromIndex(index) {
+      if (index >= 67) return "high";
+      if (index >= 40) return "medium";
+      return "low";
+    }
+
+    function capitalizeWords(text) {
+      return String(text).replace(/\w/g, (ch) => ch.toUpperCase());
     }
 
     function formatBlinkLastSeen(timestamp, clockText) {
@@ -1675,16 +1636,12 @@
       state.blink = {
         count: 0,
         score: 0,
-        commonRise: 0,
-        af7Rise: 0,
-        af8Rise: 0,
+        commonDip: 0,
+        tp9Dip: 0,
+        tp10Dip: 0,
         disagreement: 0,
-        tpActivityRatio: 0,
-        tpBurstCount: 0,
-        tpArtifactCommonDip: 0,
-        tpArtifactMaxDip: 0,
         tpMostNegative: 0,
-        tpHardBlink: false,
+        hardBlink: false,
         mode: "idle",
         aboveThreshold: false,
         lastDetectedAt: 0,
@@ -1692,21 +1649,15 @@
         flashUntil: 0,
         bannerText: "Blink detector ready.",
       };
-      state.jaw = {
-        count: 0,
-        score: 0,
-        commonRise: 0,
-        tp9Rise: 0,
-        tp10Rise: 0,
-        disagreement: 0,
-        burstCount: 0,
-        artifactBlocked: false,
-        tpMostNegative: 0,
-        aboveThreshold: false,
-        lastDetectedAt: 0,
-        lastDetectedClock: "",
-        flashUntil: 0,
-        bannerText: "Jaw-clench detector ready.",
+      state.focus = {
+        index: 50,
+        level: "calibrating",
+        thetaPower: 0,
+        alphaPower: 0,
+        betaPower: 0,
+        ratio: 0,
+        signalQuality: "waiting",
+        lastComputedAt: 0,
       };
       state.head = {
         pitchRawDeg: 0,
