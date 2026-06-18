@@ -78,6 +78,8 @@ var g_numBubbleSets    = 10;
 var g_laserEta = 1.2;
 var g_laserLenFudge = 1;
 var g_bubbleSets = [];
+var g_bubbleEmitters = [];
+var g_bubbleOpacities = [];
 var g_fishData = [];
 var g_numLightRays = 5;
 var g_lightRayY = 50;
@@ -811,36 +813,71 @@ function setupLightRay() {
   return model;
 }
 
+function updateBubbleColorRamp(index) {
+    var emitter = g_bubbleEmitters[index];
+    if (!emitter) {
+      return;
+    }
+    var opacity = g_bubbleOpacities[index] || 0;
+    emitter.setColorRamp(
+        [1, 1, 1, opacity,
+         1, 1, 1, opacity,
+         1, 1, 1, opacity,
+         1, 1, 1, opacity,
+         1, 1, 1, opacity,
+         1, 1, 1, 0]);
+}
+
+// Muse blink logic supplies one independent opacity per bubble fountain.
+function setBubbleOpacities(opacities) {
+    for (var ii = 0; ii < g_numBubbleSets; ++ii) {
+      var nextOpacity = Math.max(0, Math.min(1, opacities[ii] || 0));
+      if (Math.abs(nextOpacity - (g_bubbleOpacities[ii] || 0)) < 0.01) {
+        continue;
+      }
+      g_bubbleOpacities[ii] = nextOpacity;
+      updateBubbleColorRamp(ii);
+    }
+}
+
+// A blink starts all fountains at different positions around the tank.
+function triggerAllBubbleFountains() {
+    for (var ii = 0; ii < g_bubbleSets.length; ++ii) {
+      var radius = 8 + Math.random() * 42;
+      var angle = Math.random() * Math.PI * 2;
+      var world = fast.matrix4.translation(
+          new Float32Array(16),
+          [Math.sin(angle) * radius, 0, Math.cos(angle) * radius]);
+      g_bubbleSets[ii].trigger(world);
+    }
+}
+
 function setupBubbles(particleSystem) {
     var texture = tdl.textures.loadTexture(g_aquariumConfig.aquariumRoot + 'static_assets/bubble.png');
-    var emitter = particleSystem.createParticleEmitter(texture.texture);
-    emitter.setTranslation(0, 0, 0);
-    emitter.setState(tdl.particles.ParticleStateIds.ADD);
-    emitter.setColorRamp(
-        [1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 0]);
-    emitter.setParameters({
-        numParticles: 100,
-        numFrames: 1,
-        frameDuration: 1000.0,
-        frameStartRange: 0,
-        lifeTime: 40,
-        startTime: 0,
-        startSize: 0.01,
-        startSizeRange: 0.01,
-        endSize: 0.4,
-        endSizeRange: 0.2,
-        position: [0,-2,0],
-        positionRange: [0.1,2,0.1],
-        acceleration: [0,0.05,0],
-        accelerationRange: [0,0.02,0],
-        velocityRange: [0.05,0,0.05],
-        colorMult: [0.7,0.8,1,1]});
     for (var ii = 0; ii < g_numBubbleSets; ++ii) {
+        var emitter = particleSystem.createParticleEmitter(texture.texture);
+        g_bubbleEmitters[ii] = emitter;
+        g_bubbleOpacities[ii] = 0;
+        emitter.setTranslation(0, 0, 0);
+        emitter.setState(tdl.particles.ParticleStateIds.ADD);
+        updateBubbleColorRamp(ii);
+        emitter.setParameters({
+            numParticles: 100,
+            numFrames: 1,
+            frameDuration: 1000.0,
+            frameStartRange: 0,
+            lifeTime: 40,
+            startTime: 0,
+            startSize: 0.01,
+            startSizeRange: 0.01,
+            endSize: 0.4,
+            endSizeRange: 0.2,
+            position: [0,-2,0],
+            positionRange: [0.1,2,0.1],
+            acceleration: [0,0.05,0],
+            accelerationRange: [0,0.02,0],
+            velocityRange: [0.05,0,0.05],
+            colorMult: [0.7,0.8,1,1]});
         g_bubbleSets[ii] = emitter.createOneShot();
     }
 }
@@ -994,8 +1031,6 @@ function initialize() {
   var particleSystem = new tdl.particles.ParticleSystem(
       gl, null, math.pseudoRandom, g_vrSupported);
   setupBubbles(particleSystem);
-  var bubbleTimer = 0;
-  var bubbleIndex = 0;
   var lightRay = setupLightRay();
 
   var then = 0.0;
@@ -1841,23 +1876,6 @@ function initialize() {
         if (info.timer < 0) {
           initLightRay(info);
         }
-      }
-    }
-
-    if (g.options.bubbles.enabled) {
-      bubbleTimer -= elapsedTime * g.globals.speed;
-      if (bubbleTimer < 0) {
-        bubbleTimer = 2 + Math.random() * 8;
-        var radius = Math.random() * 50;
-        var angle = Math.random() * Math.PI * 2;
-        fast.matrix4.translation(
-            world,
-            [Math.sin(angle) * radius,
-             0,
-             Math.cos(angle) * radius]);
-        g_bubbleSets[bubbleIndex].trigger(world);
-        ++bubbleIndex;
-        bubbleIndex = bubbleIndex % g_numBubbleSets;
       }
     }
 
