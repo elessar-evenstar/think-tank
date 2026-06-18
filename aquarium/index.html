@@ -73,6 +73,25 @@ CANVAS {
 .fps {
   color: white;
 }
+#connectMuseButton {
+  display: block;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  color: white;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 4px;
+  cursor: pointer;
+}
+#connectMuseButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+#museStatus {
+  margin-bottom: 10px;
+  color: #b8dfff;
+  font-size: 11px;
+}
 #uiContainer {
   z-index: 3;
   position: absolute;
@@ -106,18 +125,20 @@ CANVAS {
   padding: 10px;
 }
 </style>
-<link href="../jquery-ui-1.8.2.custom/css/ui-lightness/jquery-ui-1.8.2.custom.css" rel="stylesheet" />
-<script src="../jquery-ui-1.8.2.custom/js/jquery-1.4.2.min.js"></script>
-<script src="../jquery-ui-1.8.2.custom/js/jquery-ui-1.8.2.custom.min.js"></script>
-<script src="../khronos/webgl-debug.js"></script>
-<script src="../tdl/base.js"></script>
+<link href="jquery-ui-1.8.2.custom/css/ui-lightness/jquery-ui-1.8.2.custom.css" rel="stylesheet" />
+<script src="jquery-ui-1.8.2.custom/js/jquery-1.4.2.min.js"></script>
+<script src="jquery-ui-1.8.2.custom/js/jquery-ui-1.8.2.custom.min.js"></script>
+<script src="tdl/base.js"></script>
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
+<script src="muse-aquarium.js"></script>
 </head>
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
 <div class="fpsContainer">
+  <button id="connectMuseButton" type="button">connect muse</button>
+  <div id="museStatus">Muse disconnected</div>
   <div class="fps">fps: <span id="fps"></span></div>
   <div class="fps">canvas width: <span id="canvasWidth"></span></div>
   <div class="fps">canvas height: <span id="canvasHeight"></span></div>
