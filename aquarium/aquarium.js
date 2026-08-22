@@ -74,7 +74,7 @@ var g_multiviewFbHeight = 0;
 var g_tailOffsetMult   = 1;
 var g_tankRadius       = 74;
 var g_tankHeight       = 36;
-var g_numBubbleSets    = 10;
+var g_numBubbleSets    = 5;
 var g_laserEta = 1.2;
 var g_laserLenFudge = 1;
 var g_bubbleSets = [];
@@ -96,6 +96,14 @@ var g_session = null;
 var g_xrImmersiveRefSpace = null;
 var g_startXRRendering = () => {};
 var g_onAnimationFrame = () => {};
+
+var g_bubbleFountainPositions = [
+  [-36, 0, -16],
+  [-20, 0, 14],
+  [0, 0, -20],
+  [20, 0, 14],
+  [36, 0, -16]
+];
 
 var g_ui = [
   { obj: 'globals',    name: 'speed',           value: 1,     max:  4 },
@@ -840,14 +848,14 @@ function setBubbleOpacities(opacities) {
     }
 }
 
-// A blink starts all fountains at different positions around the tank.
+// A blink starts the 5 fixed bubble fountains. The Muse controller decides
+// when to fade them in or out, so repeated blinks do not reset their motion.
 function triggerAllBubbleFountains() {
     for (var ii = 0; ii < g_bubbleSets.length; ++ii) {
-      var radius = 8 + Math.random() * 42;
-      var angle = Math.random() * Math.PI * 2;
+      var position = g_bubbleFountainPositions[ii % g_bubbleFountainPositions.length];
       var world = fast.matrix4.translation(
           new Float32Array(16),
-          [Math.sin(angle) * radius, 0, Math.cos(angle) * radius]);
+          position);
       g_bubbleSets[ii].trigger(world);
     }
 }
@@ -867,17 +875,19 @@ function setupBubbles(particleSystem) {
             frameDuration: 1000.0,
             frameStartRange: 0,
             lifeTime: 40,
-            startTime: 0,
-            startSize: 0.01,
-            startSizeRange: 0.01,
-            endSize: 0.4,
-            endSizeRange: 0.2,
+            timeRange: 40,
+            startTime: null,
+            startSize: 0.2,
+            startSizeRange: 0.12,
+            endSize: 2.0,
+            endSizeRange: 0.65,
             position: [0,-2,0],
-            positionRange: [0.1,2,0.1],
-            acceleration: [0,0.05,0],
-            accelerationRange: [0,0.02,0],
-            velocityRange: [0.05,0,0.05],
-            colorMult: [0.7,0.8,1,1]});
+            positionRange: [0.45,2.5,0.45],
+            velocity: [0,0.08,0],
+            velocityRange: [0.16,0.08,0.16],
+            acceleration: [0,0.08,0],
+            accelerationRange: [0,0.035,0],
+            colorMult: [1.2,1.25,1.3,1]});
         g_bubbleSets[ii] = emitter.createOneShot();
     }
 }
@@ -1035,6 +1045,7 @@ function initialize() {
 
   var then = 0.0;
   var clock = 0.0;
+  var tailClock = 0.0;
   var fpsElem = document.getElementById("fps");
 
   var monoProjection = new Float32Array(16);
@@ -1429,7 +1440,7 @@ function initialize() {
         var fishRadiusRange = fishInfo.radiusRange;
         var fishSpeed = fishInfo.speed;
         var fishSpeedRange = fishInfo.speedRange;
-        var fishTailSpeed = fishInfo.tailSpeed * f.fishTailSpeed;
+        var fishTailSpeed = fishInfo.tailSpeed;
         var fishOffset = f.fishOffset;
         var fishClockSpeed = f.fishSpeed;
         var fishHeight = f.fishHeight + fishInfo.heightOffset;
@@ -1460,7 +1471,7 @@ function initialize() {
           fishPer.scale = scale;
 
           fishPer.time =
-              ((clock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
+              ((tailClock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
               (Math.PI * 2);
           fish.draw(fishPer);
 
@@ -1790,6 +1801,10 @@ function initialize() {
       clock += elapsedTime * g.globals.speed;
       eyeClock += elapsedTime * g.globals.eyeSpeed;
     }
+    // Keep tail animation phase continuous when fishTailSpeed changes.
+    // The main fish path already uses g.globals.speed; tailClock only needs
+    // the tail-specific speed so focus changes do not double-boost the tail.
+    tailClock += elapsedTime * g.fish.fishTailSpeed;
 
     frameCount++;
     g_fpsTimer.update(elapsedTime);
@@ -1868,6 +1883,10 @@ function initialize() {
       clock += elapsedTime * g.globals.speed;
       eyeClock += elapsedTime * g.globals.eyeSpeed;
     }
+    // Keep tail animation phase continuous when fishTailSpeed changes.
+    // The main fish path already uses g.globals.speed; tailClock only needs
+    // the tail-specific speed so focus changes do not double-boost the tail.
+    tailClock += elapsedTime * g.fish.fishTailSpeed;
 
     if (g.options.lightRays.enabled) {
       for (var ii = 0; ii < g_lightRayInfo.length; ++ii) {

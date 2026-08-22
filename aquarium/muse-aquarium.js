@@ -36,7 +36,7 @@
   };
 
   var BUBBLE_CONFIG = {
-    fountainCount: 10,
+    fountainCount: 5,
     fadeInMs: 700,
     minVisibleMs: 1800,
     maxVisibleMs: 4200,
@@ -56,6 +56,42 @@
     maxFieldOfView: 120,
     gyroSmoothAmount: 0.2,
     fovSmoothAmount: 0.08
+  };
+
+  var HEAD_PITCH_CONFIG = {
+    // This pitch calculation matches the detector in the main index.html.
+    // Change pitchSign to -1 if up and down feel reversed.
+    pitchSign: 1,
+    pitchSmoothAmount: 0.55,
+    velocitySmoothAmount: 0.2,
+    neutralSmoothAmount: 0.025,
+    movementThresholdDps: 4,
+    neutralUpdateVelocityDps: 2,
+    fullSpeedDps: 35,
+    radiusChangePerSecond: 85,
+    minTargetRadius: 35,
+    maxTargetRadius: 155,
+    radiusSmoothAmount: 0.08
+  };
+
+  // Focus detection matches the main index.html: beta power compared with
+  // alpha + theta power on the AF7 and AF8 front EEG channels.
+  var FOCUS_CONFIG = {
+    sampleRate: 256,
+    windowPoints: 512,
+    computeIntervalMs: 600,
+    smoothAlpha: 0.06,
+    thetaBand: [4, 7],
+    alphaBand: [8, 12],
+    betaBand: [13, 30],
+    artifactAbsThreshold: 220,
+    recentBlinkPenaltyMs: 900
+  };
+
+  var FISH_SPEED_CONFIG = {
+    minMultiplier: 0.45,
+    maxMultiplier: 2.5,
+    smoothAmount: 0.1
   };
 
   var state = {
@@ -81,7 +117,31 @@
     },
     headTurn: "still",
     smoothedYawDps: 0,
+    headPitch: {
+      initialized: false,
+      pitchDeg: 0,
+      neutralPitchDeg: 0,
+      relativePitchDeg: 0,
+      velocityDps: 0,
+      motion: "still",
+      lastUpdatedAt: 0
+    },
+    focus: {
+      index: 50,
+      thetaPower: 0,
+      alphaPower: 0,
+      betaPower: 0,
+      ratio: 0,
+      signalQuality: "waiting",
+      level: "medium",
+      lastComputedAt: 0
+    },
     targetFieldOfView: null,
+    targetRadius: null,
+    baseFishSpeed: null,
+    targetFishSpeed: null,
+    baseFishTailSpeed: null,
+    targetFishTailSpeed: null,
     lastFrameTime: 0,
     animationFrameId: 0
   };
@@ -151,8 +211,9 @@
     for (var i = 0; i < decoded.length; i += 1) {
       series.push(0.48828125 * (decoded[i] - 0x800));
     }
-    if (series.length > 512) {
-      series.splice(0, series.length - 512);
+    var maxEEGSamples = FOCUS_CONFIG.windowPoints + 32;
+    if (series.length > maxEEGSamples) {
+      series.splice(0, series.length - maxEEGSamples);
     }
   }
 
@@ -180,6 +241,13 @@
     state.controlCharacteristic = null;
     state.headTurn = "still";
     state.smoothedYawDps = 0;
+    state.headPitch.initialized = false;
+    state.headPitch.motion = "still";
+    state.headPitch.velocityDps = 0;
+    state.focus.signalQuality = "waiting";
+    state.focus.lastComputedAt = 0;
+    state.targetFishSpeed = state.baseFishSpeed;
+    state.targetFishTailSpeed = state.baseFishTailSpeed;
     state.bubbles.visibleUntil = 0;
     for (var fountain = 0; fountain < state.bubbles.fountains.length; fountain += 1) {
       state.bubbles.fountains[fountain].visibleUntil = 0;
@@ -240,6 +308,11 @@
       state.connected = true;
       state.connecting = false;
       state.targetFieldOfView = getAquariumFieldOfView();
+      state.targetRadius = getAquariumTargetRadius();
+      state.baseFishSpeed = getAquariumFishSpeed();
+      state.targetFishSpeed = state.baseFishSpeed;
+      state.baseFishTailSpeed = getAquariumFishTailSpeed();
+      state.targetFishTailSpeed = state.baseFishTailSpeed;
       setButtonState("muse connected", false);
       setStatus("Turn left to zoom in, right to zoom out");
     } catch (error) {
@@ -257,6 +330,74 @@
       return g.globals.fieldOfView;
     }
     return 85;
+  }
+
+  function getAquariumTargetRadius() {
+    if (window.g && g.globals && Number.isFinite(g.globals.targetRadius)) {
+      return g.globals.targetRadius;
+    }
+    return 88;
+  }
+
+  function getAquariumFishSpeed() {
+    if (window.g && g.globals && Number.isFinite(g.globals.speed)) {
+      return g.globals.speed;
+    }
+    return 1;
+  }
+
+  function getAquariumFishTailSpeed() {
+    if (window.g && g.fish && Number.isFinite(g.fish.fishTailSpeed)) {
+      return g.fish.fishTailSpeed;
+    }
+    return 1;
+  }
+
+  function detectHeadPitch(now) {
+    var ax = state.accelerometer[0];
+    var ay = state.accelerometer[1];
+    var az = state.accelerometer[2];
+    if (![ax, ay, az].every(Number.isFinite)) return;
+
+    var magnitude = Math.sqrt(ax * ax + ay * ay + az * az);
+    if (magnitude < 0.000001) return;
+
+    var rawPitchDeg = HEAD_PITCH_CONFIG.pitchSign *
+      Math.atan2(ax, Math.sqrt(ay * ay + az * az)) * (180 / Math.PI);
+    var pitch = state.headPitch;
+
+    if (!pitch.initialized) {
+      pitch.pitchDeg = rawPitchDeg;
+      pitch.neutralPitchDeg = rawPitchDeg;
+      pitch.relativePitchDeg = 0;
+      pitch.velocityDps = 0;
+      pitch.motion = "still";
+      pitch.lastUpdatedAt = now;
+      pitch.initialized = true;
+      return;
+    }
+
+    var smoothedPitch = pitch.pitchDeg +
+      (rawPitchDeg - pitch.pitchDeg) * HEAD_PITCH_CONFIG.pitchSmoothAmount;
+    var dt = Math.max(0.016, (now - pitch.lastUpdatedAt) / 1000);
+    var rawVelocityDps = (smoothedPitch - pitch.pitchDeg) / dt;
+    pitch.velocityDps += (rawVelocityDps - pitch.velocityDps) *
+      HEAD_PITCH_CONFIG.velocitySmoothAmount;
+
+    if (Math.abs(pitch.velocityDps) <= HEAD_PITCH_CONFIG.neutralUpdateVelocityDps) {
+      pitch.neutralPitchDeg += (smoothedPitch - pitch.neutralPitchDeg) *
+        HEAD_PITCH_CONFIG.neutralSmoothAmount;
+    }
+
+    pitch.pitchDeg = smoothedPitch;
+    pitch.relativePitchDeg = smoothedPitch - pitch.neutralPitchDeg;
+    pitch.motion = "still";
+    if (pitch.velocityDps >= HEAD_PITCH_CONFIG.movementThresholdDps) {
+      pitch.motion = "up";
+    } else if (pitch.velocityDps <= -HEAD_PITCH_CONFIG.movementThresholdDps) {
+      pitch.motion = "down";
+    }
+    pitch.lastUpdatedAt = now;
   }
 
   function meanFromEnd(series, count, offset) {
@@ -298,6 +439,207 @@
     return samples ? Math.sqrt(total / samples) : 0;
   }
 
+  function windowFromEnd(series, count, offset) {
+    var end = Math.max(0, series.length - (offset || 0));
+    var start = Math.max(0, end - count);
+    var window = [];
+    for (var i = start; i < end; i += 1) {
+      if (Number.isFinite(series[i])) window.push(series[i]);
+    }
+    return window;
+  }
+
+  function combineWindows(windows) {
+    var minLength = Infinity;
+    for (var windowIndex = 0; windowIndex < windows.length; windowIndex += 1) {
+      minLength = Math.min(minLength, windows[windowIndex].length);
+    }
+    if (!Number.isFinite(minLength) || minLength <= 0) return [];
+
+    var combined = new Array(minLength);
+    for (var i = 0; i < minLength; i += 1) {
+      var total = 0;
+      var samples = 0;
+      for (var w = 0; w < windows.length; w += 1) {
+        var source = windows[w];
+        var value = source[source.length - minLength + i];
+        if (!Number.isFinite(value)) continue;
+        total += value;
+        samples += 1;
+      }
+      combined[i] = samples ? total / samples : 0;
+    }
+    return combined;
+  }
+
+  function removeMean(series) {
+    if (!series.length) return [];
+    var total = 0;
+    for (var i = 0; i < series.length; i += 1) total += series[i];
+    var mean = total / series.length;
+    var centered = [];
+    for (var j = 0; j < series.length; j += 1) centered.push(series[j] - mean);
+    return centered;
+  }
+
+  function applyHannWindow(series) {
+    var n = series.length;
+    if (n <= 1) return series.slice();
+    var windowed = [];
+    for (var i = 0; i < n; i += 1) {
+      var weight = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n - 1)));
+      windowed.push(series[i] * weight);
+    }
+    return windowed;
+  }
+
+  function estimateBandPower(series, sampleRate, lowHz, highHz) {
+    var n = series.length;
+    if (!n) return 0;
+    var power = 0;
+    var minK = Math.max(1, Math.ceil((lowHz * n) / sampleRate));
+    var maxK = Math.max(minK, Math.floor((highHz * n) / sampleRate));
+
+    for (var k = minK; k <= maxK; k += 1) {
+      var re = 0;
+      var im = 0;
+      for (var i = 0; i < n; i += 1) {
+        var angle = (2 * Math.PI * k * i) / n;
+        re += series[i] * Math.cos(angle);
+        im -= series[i] * Math.sin(angle);
+      }
+      power += (re * re + im * im) / (n * n);
+    }
+    return power;
+  }
+
+  function maxAbsFromEnd(series, count, offset) {
+    var end = series.length - (offset || 0);
+    var start = Math.max(0, end - count);
+    if (end <= start) return 0;
+    var found = false;
+    var maxAbs = 0;
+    for (var i = start; i < end; i += 1) {
+      var value = series[i];
+      if (!Number.isFinite(value)) continue;
+      maxAbs = Math.max(maxAbs, Math.abs(value));
+      found = true;
+    }
+    return found ? maxAbs : 0;
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function lerp(a, b, alpha) {
+    return a + (b - a) * alpha;
+  }
+
+  function focusLevelFromIndex(index) {
+    if (index >= 67) return "high";
+    if (index >= 40) return "medium";
+    return "low";
+  }
+
+  function detectFocus(now) {
+    if (now - state.focus.lastComputedAt < FOCUS_CONFIG.computeIntervalMs) return;
+
+    var af7 = state.eeg[1];
+    var af8 = state.eeg[2];
+    var needed = FOCUS_CONFIG.windowPoints + 8;
+    if (Math.min(af7.length, af8.length) < needed) return;
+
+    var af7Window = windowFromEnd(af7, FOCUS_CONFIG.windowPoints);
+    var af8Window = windowFromEnd(af8, FOCUS_CONFIG.windowPoints);
+    if (!af7Window.length || !af8Window.length) return;
+
+    var combined = combineWindows([af7Window, af8Window]);
+    var prepped = applyHannWindow(removeMean(combined));
+    var thetaPower = estimateBandPower(
+      prepped,
+      FOCUS_CONFIG.sampleRate,
+      FOCUS_CONFIG.thetaBand[0],
+      FOCUS_CONFIG.thetaBand[1]
+    );
+    var alphaPower = estimateBandPower(
+      prepped,
+      FOCUS_CONFIG.sampleRate,
+      FOCUS_CONFIG.alphaBand[0],
+      FOCUS_CONFIG.alphaBand[1]
+    );
+    var betaPower = estimateBandPower(
+      prepped,
+      FOCUS_CONFIG.sampleRate,
+      FOCUS_CONFIG.betaBand[0],
+      FOCUS_CONFIG.betaBand[1]
+    );
+
+    var denominator = alphaPower + thetaPower + 0.000001;
+    var ratio = betaPower / denominator;
+    var ratioClamped = clamp(ratio, 0.2, 2.6);
+    var rawIndex = 100 * (ratioClamped - 0.2) / (2.6 - 0.2);
+
+    var recentMaxAbs = Math.max(maxAbsFromEnd(af7, 48), maxAbsFromEnd(af8, 48));
+    var artifactPenalty = recentMaxAbs > FOCUS_CONFIG.artifactAbsThreshold
+      ? clamp((recentMaxAbs - FOCUS_CONFIG.artifactAbsThreshold) / 220, 0, 0.55)
+      : 0;
+    var blinkPenalty = now - state.blink.lastDetectedAt <= FOCUS_CONFIG.recentBlinkPenaltyMs
+      ? 0.18
+      : 0;
+    var motionAmount = Math.max(
+      Math.abs(state.smoothedYawDps || 0),
+      Math.abs(state.headPitch.velocityDps || 0)
+    );
+    var motionPenalty = clamp(motionAmount / 160, 0, 0.2);
+    rawIndex = rawIndex * (1 - artifactPenalty) * (1 - blinkPenalty) * (1 - motionPenalty);
+    rawIndex = clamp(rawIndex, 0, 100);
+
+    state.focus.index = lerp(state.focus.index, rawIndex, FOCUS_CONFIG.smoothAlpha);
+    state.focus.thetaPower = thetaPower;
+    state.focus.alphaPower = alphaPower;
+    state.focus.betaPower = betaPower;
+    state.focus.ratio = ratio;
+    state.focus.signalQuality = artifactPenalty >= 0.45
+      ? "noisy"
+      : (artifactPenalty >= 0.18 ? "fair" : "good");
+    state.focus.level = focusLevelFromIndex(state.focus.index);
+    state.focus.lastComputedAt = now;
+  }
+
+  function updateFishSpeed() {
+    if (!window.g || !g.globals || !Number.isFinite(g.globals.speed)) return;
+    if (state.baseFishSpeed === null) state.baseFishSpeed = g.globals.speed;
+    if (state.targetFishSpeed === null) state.targetFishSpeed = g.globals.speed;
+    if (g.fish && state.baseFishTailSpeed === null) {
+      state.baseFishTailSpeed = getAquariumFishTailSpeed();
+    }
+    if (g.fish && state.targetFishTailSpeed === null) {
+      state.targetFishTailSpeed = getAquariumFishTailSpeed();
+    }
+
+    if (state.connected && state.focus.lastComputedAt) {
+      var focusFraction = clamp(state.focus.index / 100, 0, 1);
+      var multiplier = lerp(
+        FISH_SPEED_CONFIG.minMultiplier,
+        FISH_SPEED_CONFIG.maxMultiplier,
+        focusFraction
+      );
+      state.targetFishSpeed = state.baseFishSpeed * multiplier;
+      if (state.baseFishTailSpeed !== null) {
+        state.targetFishTailSpeed = state.baseFishTailSpeed * multiplier;
+      }
+    }
+
+    g.globals.speed += (state.targetFishSpeed - g.globals.speed) *
+      FISH_SPEED_CONFIG.smoothAmount;
+    if (g.fish && Number.isFinite(g.fish.fishTailSpeed) &&
+        state.targetFishTailSpeed !== null) {
+      g.fish.fishTailSpeed += (state.targetFishTailSpeed - g.fish.fishTailSpeed) *
+        FISH_SPEED_CONFIG.smoothAmount;
+    }
+  }
+
   function detectBlink(now) {
     var tp9 = state.eeg[0];
     var tp10 = state.eeg[3];
@@ -334,6 +676,7 @@
 
     if (enterThreshold && !state.blink.aboveThreshold &&
         now - state.blink.lastDetectedAt >= BLINK_CONFIG.cooldownMs) {
+      var shouldStartBubbles = state.bubbles.opacity < 0.05 && now >= state.bubbles.visibleUntil;
       state.blink.count += 1;
       state.blink.lastDetectedAt = now;
       state.bubbles.visibleUntil = 0;
@@ -352,7 +695,7 @@
           fountainState.visibleUntil
         );
       }
-      if (typeof window.triggerAllBubbleFountains === "function") {
+      if (shouldStartBubbles && typeof window.triggerAllBubbleFountains === "function") {
         window.triggerAllBubbleFountains();
       }
     }
@@ -392,10 +735,15 @@
     var now = Date.now();
 
     if (state.connected) detectBlink(now);
+    if (state.connected) detectHeadPitch(now);
+    if (state.connected) detectFocus(now);
     updateBubbles(now, dt);
 
     if (state.targetFieldOfView === null) {
       state.targetFieldOfView = getAquariumFieldOfView();
+    }
+    if (state.targetRadius === null) {
+      state.targetRadius = getAquariumTargetRadius();
     }
 
     if (state.connected && Math.abs(state.smoothedYawDps) > HEAD_TURN_CONFIG.deadZoneDps) {
@@ -416,17 +764,45 @@
       state.headTurn = "still";
     }
 
+    if (state.connected && state.headPitch.motion !== "still") {
+      var pitchStrength = Math.min(
+        (Math.abs(state.headPitch.velocityDps) - HEAD_PITCH_CONFIG.movementThresholdDps) /
+          (HEAD_PITCH_CONFIG.fullSpeedDps - HEAD_PITCH_CONFIG.movementThresholdDps),
+        1
+      );
+      var pitchDirection = state.headPitch.motion === "up" ? 1 : -1;
+      state.targetRadius += pitchDirection * pitchStrength *
+        HEAD_PITCH_CONFIG.radiusChangePerSecond * dt;
+      state.targetRadius = Math.max(
+        HEAD_PITCH_CONFIG.minTargetRadius,
+        Math.min(HEAD_PITCH_CONFIG.maxTargetRadius, state.targetRadius)
+      );
+    }
+
     if (window.g && g.globals && Number.isFinite(g.globals.fieldOfView)) {
       g.globals.fieldOfView += (state.targetFieldOfView - g.globals.fieldOfView) *
         HEAD_TURN_CONFIG.fovSmoothAmount;
 
+      if (Number.isFinite(g.globals.targetRadius)) {
+        g.globals.targetRadius += (state.targetRadius - g.globals.targetRadius) *
+          HEAD_PITCH_CONFIG.radiusSmoothAmount;
+      }
+
       if (state.connected) {
         var batteryText = Number.isFinite(state.battery) ? " | " + state.battery.toFixed(0) + "%" : "";
-        setStatus("Head: " + state.headTurn + " | FOV: " +
-          g.globals.fieldOfView.toFixed(0) + " | Blinks: " +
+        var radiusText = Number.isFinite(g.globals.targetRadius)
+          ? " | Radius: " + g.globals.targetRadius.toFixed(0)
+          : "";
+        var speedText = Number.isFinite(g.globals.speed)
+          ? " | Speed: " + g.globals.speed.toFixed(2)
+          : "";
+        setStatus("Turn: " + state.headTurn + " | Pitch: " + state.headPitch.motion +
+          " | FOV: " + g.globals.fieldOfView.toFixed(0) + radiusText +
+          " | Focus: " + state.focus.index.toFixed(0) + speedText + " | Blinks: " +
           state.blink.count + batteryText);
       }
     }
+    updateFishSpeed();
 
     state.animationFrameId = requestAnimationFrame(updateFieldOfView);
   }
@@ -448,6 +824,9 @@
   window.museAquarium = {
     state: state,
     config: HEAD_TURN_CONFIG,
+    headPitchConfig: HEAD_PITCH_CONFIG,
+    focusConfig: FOCUS_CONFIG,
+    fishSpeedConfig: FISH_SPEED_CONFIG,
     blinkConfig: BLINK_CONFIG,
     bubbleConfig: BUBBLE_CONFIG,
     connect: connect
