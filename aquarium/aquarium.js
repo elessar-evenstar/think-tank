@@ -2107,29 +2107,19 @@ $(function(){
     g.net.fovFudge = 1;
   }
 
-  $('#setSettingAdvanced').click(function() {
-      $("#uiContainer").toggle('slow'); return false; });
-  $("#uiContainer").toggle();
-  $('#options').click(function() {
-      $("#optionsContainer").toggle(); return false; });
-  $("#optionsContainer").toggle();
+  // The player-facing aquarium controls stay hidden. Aquarium settings are
+  // still initialized here because the renderer and Muse mappings use them.
+  $("#uiContainer").hide();
+  $("#topUI").hide();
 
   if (g.net.ui === false) {
     $('#topUI').hide();
   } else {
     $(document).keypress(function(event) {
-      if (event.which == 'l'.charCodeAt(0) ||
-          event.which == 'L'.charCodeAt(0)) {
-        setSettings({drawLasers: !g.drawLasers});
-      } else if (event.which == ' '.charCodeAt(0)) {
-        advanceViewSettings();
-      } else if (event.which == 's'.charCodeAt(0) ||
-                 event.which == 'S'.charCodeAt(0)) {
+      if (event.which == 's'.charCodeAt(0) ||
+          event.which == 'S'.charCodeAt(0)) {
         tdl.screenshot.takeScreenshot(
           document.getElementById("canvas"));
-      } else if (event.which == 'h'.charCodeAt(0) ||
-                 event.which == 'H'.charCodeAt(0)) {
-        $('#topUI').toggle();
       }
     });
   }
