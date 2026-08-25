@@ -151,6 +151,18 @@
     if (status) status.textContent = message;
   }
 
+  function setStartScreenVisible(visible) {
+    var startScreen = document.getElementById("startScreen");
+    if (!startScreen) return;
+    startScreen.style.display = visible ? "flex" : "none";
+  }
+
+  function setMuseStatsVisible(visible) {
+    var stats = document.getElementById("museStats");
+    if (!stats) return;
+    stats.style.display = visible ? "block" : "none";
+  }
+
   function setButtonState(label, disabled) {
     var button = document.getElementById("connectMuseButton");
     if (!button) return;
@@ -252,6 +264,8 @@
     for (var fountain = 0; fountain < state.bubbles.fountains.length; fountain += 1) {
       state.bubbles.fountains[fountain].visibleUntil = 0;
     }
+    setStartScreenVisible(true);
+    setMuseStatsVisible(false);
     setButtonState("connect muse", false);
     setStatus("Muse disconnected");
   }
@@ -313,6 +327,8 @@
       state.targetFishSpeed = state.baseFishSpeed;
       state.baseFishTailSpeed = getAquariumFishTailSpeed();
       state.targetFishTailSpeed = state.baseFishTailSpeed;
+      setStartScreenVisible(false);
+      setMuseStatsVisible(true);
       setButtonState("muse connected", false);
       setStatus("Turn left to zoom in, right to zoom out");
     } catch (error) {
@@ -808,6 +824,8 @@
   }
 
   document.addEventListener("DOMContentLoaded", function() {
+    setStartScreenVisible(true);
+    setMuseStatsVisible(false);
     var button = document.getElementById("connectMuseButton");
     if (button) button.addEventListener("click", connect);
     for (var fountain = 0; fountain < BUBBLE_CONFIG.fountainCount; fountain += 1) {
