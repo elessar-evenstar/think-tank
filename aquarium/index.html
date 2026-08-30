@@ -91,6 +91,7 @@ CANVAS {
   background: rgba(0,0,0,0.12);
 }
 .startPanel {
+  position: relative;
   width: min(430px, 100%);
   box-sizing: border-box;
   padding: 42px 34px 38px;
@@ -106,6 +107,51 @@ CANVAS {
   font-family: Georgia, serif;
   font-size: 36px;
   font-weight: normal;
+}
+#controlsPanel {
+  display: none;
+  text-align: left;
+}
+#controlsPanel h1,
+#controlsPanel h2 {
+  text-align: center;
+}
+#controlsPanel h1 {
+  margin-bottom: 10px;
+}
+#controlsPanel h2 {
+  margin: 0 0 28px;
+  color: #b8dfff;
+  font-size: 18px;
+  font-weight: normal;
+}
+.controlInstructions {
+  color: rgba(255,255,255,0.9);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.controlInstructions p {
+  margin: 0 0 16px;
+}
+.controlInstructions p:last-child {
+  margin-bottom: 0;
+}
+#backButton {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  padding: 4px 8px;
+  color: rgba(255,255,255,0.8);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 5px;
+  font-family: sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+}
+#backButton:hover {
+  color: white;
+  background: rgba(255,255,255,0.12);
 }
 .startButtons {
   display: grid;
@@ -193,11 +239,22 @@ CANVAS {
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
 <div id="startScreen">
-  <div class="startPanel">
+  <div id="startPanel" class="startPanel">
     <h1>thinktank</h1>
     <div class="startButtons">
       <button id="connectMuseButton" type="button">connect muse</button>
       <button id="controlsButton" type="button">controls</button>
+    </div>
+  </div>
+  <div id="controlsPanel" class="startPanel">
+    <button id="backButton" type="button">back</button>
+    <h1>thinktank</h1>
+    <h2>controls</h2>
+    <div class="controlInstructions">
+      <p>Blinking activates the bubbles.</p>
+      <p>Greater concentration makes the fish swim faster.</p>
+      <p>Looking up or down moves the camera vertically.</p>
+      <p>Looking left or right zooms the camera in or out.</p>
     </div>
   </div>
 </div>

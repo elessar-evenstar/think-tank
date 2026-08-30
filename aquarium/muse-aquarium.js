@@ -157,6 +157,15 @@
     startScreen.style.display = visible ? "flex" : "none";
   }
 
+  function showStartPanel(panelName) {
+    var startPanel = document.getElementById("startPanel");
+    var controlsPanel = document.getElementById("controlsPanel");
+    if (!startPanel || !controlsPanel) return;
+    var showingControls = panelName === "controls";
+    startPanel.style.display = showingControls ? "none" : "block";
+    controlsPanel.style.display = showingControls ? "block" : "none";
+  }
+
   function setMuseStatsVisible(visible) {
     var stats = document.getElementById("museStats");
     if (!stats) return;
@@ -264,6 +273,7 @@
     for (var fountain = 0; fountain < state.bubbles.fountains.length; fountain += 1) {
       state.bubbles.fountains[fountain].visibleUntil = 0;
     }
+    showStartPanel("start");
     setStartScreenVisible(true);
     setMuseStatsVisible(false);
     setButtonState("connect muse", false);
@@ -824,10 +834,23 @@
   }
 
   document.addEventListener("DOMContentLoaded", function() {
+    showStartPanel("start");
     setStartScreenVisible(true);
     setMuseStatsVisible(false);
     var button = document.getElementById("connectMuseButton");
     if (button) button.addEventListener("click", connect);
+    var controlsButton = document.getElementById("controlsButton");
+    if (controlsButton) {
+      controlsButton.addEventListener("click", function() {
+        showStartPanel("controls");
+      });
+    }
+    var backButton = document.getElementById("backButton");
+    if (backButton) {
+      backButton.addEventListener("click", function() {
+        showStartPanel("start");
+      });
+    }
     for (var fountain = 0; fountain < BUBBLE_CONFIG.fountainCount; fountain += 1) {
       state.bubbles.fountains.push({
         opacity: 0,
