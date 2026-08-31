@@ -276,7 +276,7 @@
     showStartPanel("start");
     setStartScreenVisible(true);
     setMuseStatsVisible(false);
-    setButtonState("connect muse", false);
+    setButtonState("Connect Muse", false);
     setStatus("Muse disconnected");
   }
 
