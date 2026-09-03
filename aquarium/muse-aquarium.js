@@ -145,6 +145,7 @@
     lastFrameTime: 0,
     animationFrameId: 0
   };
+  var introductionSlideIndex = 0;
 
   function setStatus(message) {
     var status = document.getElementById("museStatus");
@@ -160,10 +161,32 @@
   function showStartPanel(panelName) {
     var startPanel = document.getElementById("startPanel");
     var controlsPanel = document.getElementById("controlsPanel");
-    if (!startPanel || !controlsPanel) return;
+    var introductionPanel = document.getElementById("introductionPanel");
+    if (!startPanel || !controlsPanel || !introductionPanel) return;
     var showingControls = panelName === "controls";
-    startPanel.style.display = showingControls ? "none" : "block";
+    var showingIntroduction = panelName === "introduction";
+    startPanel.style.display = showingControls || showingIntroduction ? "none" : "block";
     controlsPanel.style.display = showingControls ? "block" : "none";
+    introductionPanel.style.display = showingIntroduction ? "block" : "none";
+  }
+
+  function showIntroductionSlide(index) {
+    var slides = document.querySelectorAll("#introductionPanel .introductionSlide");
+    if (!slides.length) return;
+
+    introductionSlideIndex = Math.max(0, Math.min(index, slides.length - 1));
+    for (var slide = 0; slide < slides.length; slide += 1) {
+      slides[slide].classList.toggle("active", slide === introductionSlideIndex);
+    }
+
+    var previousButton = document.getElementById("introductionPreviousButton");
+    var nextButton = document.getElementById("introductionNextButton");
+    var progress = document.getElementById("introductionProgress");
+    if (previousButton) previousButton.disabled = introductionSlideIndex === 0;
+    if (nextButton) {
+      nextButton.textContent = introductionSlideIndex === slides.length - 1 ? "Done" : "Next";
+    }
+    if (progress) progress.textContent = (introductionSlideIndex + 1) + " / " + slides.length;
   }
 
   function setMuseStatsVisible(visible) {
@@ -289,7 +312,7 @@
     }
 
     state.connecting = true;
-    setButtonState("connecting...", true);
+    setButtonState("Connecting...", true);
     setStatus("Choose your Muse in the Bluetooth picker");
 
     try {
@@ -851,6 +874,37 @@
         showStartPanel("start");
       });
     }
+    var introductionButton = document.getElementById("introductionButton");
+    if (introductionButton) {
+      introductionButton.addEventListener("click", function() {
+        showStartPanel("introduction");
+        showIntroductionSlide(0);
+      });
+    }
+    var introductionBackButton = document.getElementById("introductionBackButton");
+    if (introductionBackButton) {
+      introductionBackButton.addEventListener("click", function() {
+        showStartPanel("start");
+      });
+    }
+    var introductionPreviousButton = document.getElementById("introductionPreviousButton");
+    if (introductionPreviousButton) {
+      introductionPreviousButton.addEventListener("click", function() {
+        showIntroductionSlide(introductionSlideIndex - 1);
+      });
+    }
+    var introductionNextButton = document.getElementById("introductionNextButton");
+    if (introductionNextButton) {
+      introductionNextButton.addEventListener("click", function() {
+        var slides = document.querySelectorAll("#introductionPanel .introductionSlide");
+        if (introductionSlideIndex >= slides.length - 1) {
+          showStartPanel("start");
+        } else {
+          showIntroductionSlide(introductionSlideIndex + 1);
+        }
+      });
+    }
+    showIntroductionSlide(0);
     for (var fountain = 0; fountain < BUBBLE_CONFIG.fountainCount; fountain += 1) {
       state.bubbles.fountains.push({
         opacity: 0,

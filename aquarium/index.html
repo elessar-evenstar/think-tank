@@ -112,14 +112,32 @@ CANVAS {
   display: none;
   text-align: left;
 }
+#introductionPanel {
+  display: none;
+  width: min(720px, 100%);
+  text-align: left;
+}
 #controlsPanel h1,
 #controlsPanel h2 {
+  text-align: center;
+}
+#introductionPanel h1,
+#introductionPanel h2 {
   text-align: center;
 }
 #controlsPanel h1 {
   margin-bottom: 10px;
 }
+#introductionPanel h1 {
+  margin-bottom: 10px;
+}
 #controlsPanel h2 {
+  margin: 0 0 28px;
+  color: #b8dfff;
+  font-size: 18px;
+  font-weight: normal;
+}
+#introductionPanel h2 {
   margin: 0 0 28px;
   color: #b8dfff;
   font-size: 18px;
@@ -136,6 +154,70 @@ CANVAS {
 .controlInstructions p:last-child {
   margin-bottom: 0;
 }
+.introductionText {
+  color: rgba(255,255,255,0.9);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.introductionSlide {
+  display: none;
+}
+.introductionSlide.active {
+  display: block;
+}
+.introductionText h3 {
+  margin: 0 0 12px;
+  color: #b8dfff;
+  font-size: 16px;
+  font-weight: normal;
+}
+.introductionText p {
+  margin: 0 0 16px;
+}
+.introductionText ul,
+.introductionText ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.introductionText li {
+  margin-bottom: 10px;
+}
+.introductionText li:last-child {
+  margin-bottom: 0;
+}
+.introductionText p:last-child {
+  margin-bottom: 0;
+}
+.introductionNavigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 28px;
+}
+.introductionNavigation button {
+  min-width: 96px;
+  min-height: 38px;
+  padding: 6px 12px;
+  color: white;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.4);
+  border-radius: 6px;
+  font-family: sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+.introductionNavigation button:hover {
+  background: rgba(255,255,255,0.2);
+}
+.introductionNavigation button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.introductionProgress {
+  color: rgba(255,255,255,0.65);
+  font-size: 12px;
+}
 #backButton {
   position: absolute;
   top: 14px;
@@ -149,7 +231,21 @@ CANVAS {
   font-size: 13px;
   cursor: pointer;
 }
-#backButton:hover {
+#introductionBackButton {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  padding: 4px 8px;
+  color: rgba(255,255,255,0.8);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 5px;
+  font-family: sans-serif;
+  font-size: 13px;
+  cursor: pointer;
+}
+#backButton:hover,
+#introductionBackButton:hover {
   color: white;
   background: rgba(255,255,255,0.12);
 }
@@ -159,7 +255,8 @@ CANVAS {
   justify-items: center;
 }
 #connectMuseButton,
-#controlsButton {
+#controlsButton,
+#introductionButton {
   display: block;
   width: 220px;
   min-height: 44px;
@@ -174,7 +271,8 @@ CANVAS {
   cursor: pointer;
 }
 #connectMuseButton:hover,
-#controlsButton:hover {
+#controlsButton:hover,
+#introductionButton:hover {
   background: rgba(255,255,255,0.2);
 }
 #connectMuseButton:disabled {
@@ -243,6 +341,7 @@ CANVAS {
     <h1>ThinkTank</h1>
     <div class="startButtons">
       <button id="connectMuseButton" type="button">Connect Muse</button>
+      <button id="introductionButton" type="button">Introduction</button>
       <button id="controlsButton" type="button">Controls</button>
     </div>
   </div>
@@ -251,10 +350,63 @@ CANVAS {
     <h1>ThinkTank</h1>
     <h2>Controls</h2>
     <div class="controlInstructions">
-      <p>Blinking activates the bubbles.</p>
-      <p>Greater concentration makes the fish swim faster.</p>
-      <p>Looking up or down moves the camera vertically.</p>
-      <p>Looking left or right zooms the camera in or out.</p>
+        <p>Blinking activates all five bubble fountains.</p>
+        <p>Higher concentration makes the fish swim faster.</p>
+        <p>Looking up tilts the camera angle up, while looking down tilts it down.</p>
+        <p>Turning the head left zooms the camera out, while turning the head right zooms the camera in.</p>
+    </div>
+  </div>
+  <div id="introductionPanel" class="startPanel">
+    <button id="introductionBackButton" type="button">back</button>
+    <h1>ThinkTank</h1>
+    <div class="introductionSlide active" data-slide="0">
+      <h2>What is ThinkTank?</h2>
+      <div class="introductionText">
+        <p>ThinkTank is an interactive virtual aquarium controlled by a Muse 2 headband. It reads electrical activity from the brain, called EEG, and motion from the headband's built-in sensors.</p>
+        <h3>Controls</h3>
+        <ul>
+          <li>Blinking activates all five bubble fountains.</li>
+          <li>Higher concentration makes the fish swim faster.</li>
+          <li>Looking up tilts the camera angle up, while looking down tilts it down.</li>
+          <li>Turning the head left zooms the camera out, while turning the head right zooms the camera in.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="science">
+      <h2>The Science Behind It</h2>
+      <div class="introductionText">
+        <p>Neurons pass information through electrical and chemical signals. When excitatory inputs arrive close together in the neuron, ion channels open and positively charged ions such as sodium (Na+) enter the receiving neuron. This makes its inside temporarily less negative. This triggers an action potential: a brief electrical impulse that travels along the neuron and helps pass information onward.</p>
+        <p>The Muse 2's detects the combined electrical fields from groups of similarly oriented neurons in the brain. When many neurons produce action potentials at roughly the same time, their tiny signals add together to create a measurable voltage difference. This is detected by electrodes, conductive sensors on the device. The Muse 2 collects data from the TP9 and TP10 electrodes, which are placed behind the ears, and the AF7 and AF8 electrodes, which are placed on the forehead. The device amplifies the small signal, converts it into numbers, and sends it to a computer. </p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="1">
+      <h2>How Blink Detection Works</h2>
+      <div class="introductionText">
+        <p>ThinkTank uses the TP9 and TP10 channels for blinking. A blink creates a short downward spike in these signals.</p>
+        <p>To look for the downward spike, the algorithm compares the newest 14 measurements with the 96 measurements immediately before them. It detects a blink when both channels fall at least 35 signal units below their recent baseline, their average drop is at least 70 units, and the drop is at least 2.8 times larger than the normal background noise. A very large spike reaching -400 units in either channel also counts.</p>
+        <p>After a blink is detected, the five bubble fountains in the aquarium fade in together. A short cooldown prevents one blink from being counted several times.</p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="2">
+      <h2>How Concentration Is Estimated</h2>
+      <div class="introductionText">
+        <p>ThinkTank uses the Muse 2's AF7 and AF8 EEG channels for its concentration estimate. The software examines around two seconds of recent data from both channels and averages them together.</p>
+        <p>EEG is made up of activity moving at many different speeds, which are measured in hertz (Hz), or cycles per second. They are often grouped into broad bands: theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). Theta and alpha are often associated with slower and relaxed activity, while beta is faster and is often associated with active mental processing.</p>
+        <p>The software measures the strength, or power, in each band and calculates: <strong>beta power / (alpha power + theta power)</strong>. More beta activity compared to alpha and theta produces a higher concentration score. The score is smoothed over time and reduced when the signal is noisy or there is strong movement. This reading is an estimate, and not a medical measurement. </p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="3">
+      <h2>How Head Movement Works</h2>
+      <div class="introductionText">
+        <p>The Muse 2 also provides motion data. Its gyroscope measures rotation around three axes. ThinkTank uses the Z axis to recognize left and right head turns.</p>
+        <p>For up-and-down movement, ThinkTank uses the accelerometer. Its readings show the direction of gravity relative to the headset, which lets the software estimate whether the headset is tilting up or down.</p>
+        <p>Both camera responses are smoothed so small movements produce gradual changes instead of sudden jumps.</p>
+      </div>
+    </div>
+    <div class="introductionNavigation">
+      <button id="introductionPreviousButton" type="button" disabled>Previous</button>
+      <span id="introductionProgress" class="introductionProgress">1 / 5</span>
+      <button id="introductionNextButton" type="button">Next</button>
     </div>
   </div>
 </div>
