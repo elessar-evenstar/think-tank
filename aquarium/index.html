@@ -282,6 +282,59 @@ CANVAS {
 #museStats {
   display: none;
 }
+#eegLivePanel {
+  display: none;
+  position: absolute;
+  top: 28px;
+  right: 20px;
+  z-index: 3;
+  width: 132px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  color: rgba(255,255,255,0.9);
+  background-color: rgba(0,0,0,0.5);
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.eegLiveTitle {
+  color: #b8dfff;
+  font-size: 11px;
+  text-align: center;
+}
+#eegToggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+#eegToggleButton:hover .eegLiveTitle,
+#eegToggleButton:focus-visible .eegLiveTitle {
+  color: white;
+}
+#eegToggleIcon {
+  margin-left: 6px;
+  color: white;
+  font-size: 10px;
+}
+#eegLivePanel.expanded {
+  width: 242px;
+}
+#eegGraph {
+  display: none;
+  width: 220px;
+  height: 120px;
+  margin-top: 4px;
+}
+#eegLivePanel.expanded #eegGraph {
+  display: block;
+}
 #museStatus {
   margin: 0;
   color: #b8dfff;
@@ -424,6 +477,14 @@ CANVAS {
   </div>
   </div>
   </div>
+</div>
+<div id="eegLivePanel" aria-label="Live EEG waveform display">
+  <button id="eegToggleButton" type="button" aria-expanded="false" aria-controls="eegGraph">
+    <span class="eegLiveTitle">Live EEG</span>
+    <span id="eegToggleIcon" aria-hidden="true">&#9660;</span>
+  </button>
+  <canvas id="eegGraph" width="220" height="120" role="img"
+    aria-label="Live waveforms for TP9, AF7, AF8, and TP10"></canvas>
 </div>
 <div id="uiContainer">
 <div id="ui"></div>

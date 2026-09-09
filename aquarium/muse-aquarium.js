@@ -94,6 +94,16 @@
     smoothAmount: 0.1
   };
 
+  var EEG_DISPLAY_CONFIG = {
+    channelNames: ["TP9", "AF7", "AF8", "TP10"],
+    channelColors: ["#8dd3ff", "#a7f3d0", "#ffd27a", "#ff9fb3"],
+    pointCount: 180,
+    width: 220,
+    height: 120,
+    labelWidth: 30,
+    rowHeight: 28
+  };
+
   var state = {
     connected: false,
     connecting: false,
@@ -195,6 +205,103 @@
     stats.style.display = visible ? "block" : "none";
   }
 
+  function setEEGPanelVisible(visible) {
+    var panel = document.getElementById("eegLivePanel");
+    if (!panel) return;
+    panel.style.display = visible ? "block" : "none";
+  }
+
+  function setEEGPanelExpanded(expanded) {
+    var panel = document.getElementById("eegLivePanel");
+    var toggle = document.getElementById("eegToggleButton");
+    var icon = document.getElementById("eegToggleIcon");
+    if (!panel || !toggle || !icon) return;
+
+    panel.classList.toggle("expanded", expanded);
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    icon.textContent = expanded ? "\u25B2" : "\u25BC";
+  }
+
+  function updateEEGDisplay() {
+    var canvas = document.getElementById("eegGraph");
+    if (!canvas) return;
+
+    var context = canvas.getContext("2d");
+    if (!context) return;
+
+    var plotLeft = EEG_DISPLAY_CONFIG.labelWidth;
+    var plotRight = EEG_DISPLAY_CONFIG.width - 4;
+    var plotWidth = plotRight - plotLeft;
+    context.clearRect(0, 0, EEG_DISPLAY_CONFIG.width, EEG_DISPLAY_CONFIG.height);
+
+    for (var channel = 0; channel < EEG_DISPLAY_CONFIG.channelNames.length; channel += 1) {
+      var centerY = EEG_DISPLAY_CONFIG.rowHeight * channel + EEG_DISPLAY_CONFIG.rowHeight / 2;
+      var series = state.eeg[channel] || [];
+      var pointCount = Math.min(EEG_DISPLAY_CONFIG.pointCount, series.length);
+      var start = series.length - pointCount;
+      var sum = 0;
+      var validPoints = 0;
+
+      for (var point = start; point < series.length; point += 1) {
+        if (Number.isFinite(series[point])) {
+          sum += series[point];
+          validPoints += 1;
+        }
+      }
+
+      var mean = validPoints ? sum / validPoints : 0;
+      var maximumDeviation = 0;
+      for (var deviationPoint = start; deviationPoint < series.length; deviationPoint += 1) {
+        if (Number.isFinite(series[deviationPoint])) {
+          maximumDeviation = Math.max(
+            maximumDeviation,
+            Math.abs(series[deviationPoint] - mean)
+          );
+        }
+      }
+
+      // Each row scales to its recent signal range so small EEG changes remain visible.
+      var amplitude = Math.max(20, maximumDeviation * 1.1);
+      var halfRowHeight = EEG_DISPLAY_CONFIG.rowHeight * 0.42;
+      var scale = halfRowHeight / amplitude;
+
+      context.strokeStyle = "rgba(255,255,255,0.16)";
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(plotLeft, centerY);
+      context.lineTo(plotRight, centerY);
+      context.stroke();
+
+      context.fillStyle = EEG_DISPLAY_CONFIG.channelColors[channel];
+      context.font = "10px sans-serif";
+      context.fillText(EEG_DISPLAY_CONFIG.channelNames[channel], 2, centerY + 3);
+
+      if (pointCount < 2) continue;
+
+      var hasPoint = false;
+      context.strokeStyle = EEG_DISPLAY_CONFIG.channelColors[channel];
+      context.lineWidth = 1.4;
+      context.beginPath();
+      for (var sample = 0; sample < pointCount; sample += 1) {
+        var value = series[start + sample];
+        if (!Number.isFinite(value)) {
+          hasPoint = false;
+          continue;
+        }
+
+        var x = plotLeft + (sample / (pointCount - 1)) * plotWidth;
+        var y = centerY - clamp((value - mean) * scale, -halfRowHeight, halfRowHeight);
+        if (!hasPoint) {
+          context.moveTo(x, y);
+          hasPoint = true;
+        } else {
+          context.lineTo(x, y);
+        }
+      }
+      if (hasPoint) context.stroke();
+    }
+  }
+
   function setButtonState(label, disabled) {
     var button = document.getElementById("connectMuseButton");
     if (!button) return;
@@ -259,6 +366,7 @@
     if (series.length > maxEEGSamples) {
       series.splice(0, series.length - maxEEGSamples);
     }
+    updateEEGDisplay();
   }
 
   function encodeCommand(command) {
@@ -299,6 +407,9 @@
     showStartPanel("start");
     setStartScreenVisible(true);
     setMuseStatsVisible(false);
+    setEEGPanelVisible(false);
+    setEEGPanelExpanded(false);
+    updateEEGDisplay();
     setButtonState("Connect Muse", false);
     setStatus("Muse disconnected");
   }
@@ -362,6 +473,9 @@
       state.targetFishTailSpeed = state.baseFishTailSpeed;
       setStartScreenVisible(false);
       setMuseStatsVisible(true);
+      setEEGPanelVisible(true);
+      setEEGPanelExpanded(false);
+      updateEEGDisplay();
       setButtonState("muse connected", false);
       setStatus("Turn left to zoom in, right to zoom out");
     } catch (error) {
@@ -847,7 +961,7 @@
           : "";
         setStatus("Turn: " + state.headTurn + " | Pitch: " + state.headPitch.motion +
           " | FOV: " + g.globals.fieldOfView.toFixed(0) + radiusText +
-          " | Focus: " + state.focus.index.toFixed(0) + speedText + " | Blinks: " +
+          " | EEG engagement estimate: " + state.focus.index.toFixed(0) + speedText + " | Blinks: " +
           state.blink.count + batteryText);
       }
     }
@@ -866,6 +980,12 @@
     if (controlsButton) {
       controlsButton.addEventListener("click", function() {
         showStartPanel("controls");
+      });
+    }
+    var eegToggleButton = document.getElementById("eegToggleButton");
+    if (eegToggleButton) {
+      eegToggleButton.addEventListener("click", function() {
+        setEEGPanelExpanded(eegToggleButton.getAttribute("aria-expanded") !== "true");
       });
     }
     var backButton = document.getElementById("backButton");
