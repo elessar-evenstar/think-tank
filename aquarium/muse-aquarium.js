@@ -717,26 +717,31 @@
     var af8Window = windowFromEnd(af8, FOCUS_CONFIG.windowPoints);
     if (!af7Window.length || !af8Window.length) return;
 
-    var combined = combineWindows([af7Window, af8Window]);
-    var prepped = applyHannWindow(removeMean(combined));
-    var thetaPower = estimateBandPower(
-      prepped,
-      FOCUS_CONFIG.sampleRate,
-      FOCUS_CONFIG.thetaBand[0],
-      FOCUS_CONFIG.thetaBand[1]
-    );
-    var alphaPower = estimateBandPower(
-      prepped,
-      FOCUS_CONFIG.sampleRate,
-      FOCUS_CONFIG.alphaBand[0],
-      FOCUS_CONFIG.alphaBand[1]
-    );
-    var betaPower = estimateBandPower(
-      prepped,
-      FOCUS_CONFIG.sampleRate,
-      FOCUS_CONFIG.betaBand[0],
-      FOCUS_CONFIG.betaBand[1]
-    );
+    // Calculate power before combining channels so opposite-phase waves cannot cancel.
+    var channels = [
+      applyHannWindow(removeMean(af7Window)),
+      applyHannWindow(removeMean(af8Window))
+    ];
+    var thetaPower = 0;
+    var alphaPower = 0;
+    var betaPower = 0;
+    for (var channel = 0; channel < channels.length; channel += 1) {
+      thetaPower += estimateBandPower(
+        channels[channel], FOCUS_CONFIG.sampleRate,
+        FOCUS_CONFIG.thetaBand[0], FOCUS_CONFIG.thetaBand[1]
+      );
+      alphaPower += estimateBandPower(
+        channels[channel], FOCUS_CONFIG.sampleRate,
+        FOCUS_CONFIG.alphaBand[0], FOCUS_CONFIG.alphaBand[1]
+      );
+      betaPower += estimateBandPower(
+        channels[channel], FOCUS_CONFIG.sampleRate,
+        FOCUS_CONFIG.betaBand[0], FOCUS_CONFIG.betaBand[1]
+      );
+    }
+    thetaPower /= channels.length;
+    alphaPower /= channels.length;
+    betaPower /= channels.length;
 
     var denominator = alphaPower + thetaPower + 0.000001;
     var ratio = betaPower / denominator;

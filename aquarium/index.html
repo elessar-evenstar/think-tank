@@ -404,9 +404,9 @@ CANVAS {
     <h2>Controls</h2>
     <div class="controlInstructions">
         <p>Blinking activates all five bubble fountains.</p>
-        <p>Higher concentration makes the fish swim faster.</p>
-        <p>Looking up tilts the camera angle up, while looking down tilts it down.</p>
-        <p>Turning the head left zooms the camera out, while turning the head right zooms the camera in.</p>
+        <p>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</p>
+        <p>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</p>
+        <p>Turning your head left zooms in; turning right zooms out. Hold still to keep the new zoom.</p>
     </div>
   </div>
   <div id="introductionPanel" class="startPanel">
@@ -415,45 +415,47 @@ CANVAS {
     <div class="introductionSlide active" data-slide="0">
       <h2>What is ThinkTank?</h2>
       <div class="introductionText">
-        <p>ThinkTank is an interactive virtual aquarium controlled by a Muse 2 headband. It reads electrical activity from the brain, called EEG, and motion from the headband's built-in sensors.</p>
+        <p>ThinkTank is an interactive aquarium controlled by a Muse 2 headband. It uses EEG frequency features for an EEG engagement estimate, blink artifacts in the electrode recordings to detect blinks, and separate motion sensors to track head movement.</p>
         <h3>Controls</h3>
         <ul>
           <li>Blinking activates all five bubble fountains.</li>
-          <li>Higher concentration makes the fish swim faster.</li>
-          <li>Looking up tilts the camera angle up, while looking down tilts it down.</li>
-          <li>Turning the head left zooms the camera out, while turning the head right zooms the camera in.</li>
+          <li>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</li>
+          <li>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</li>
+          <li>Turning your head left zooms in; turning right zooms out. Hold still to keep the new zoom.</li>
         </ul>
       </div>
     </div>
     <div class="introductionSlide" data-slide="science">
       <h2>The Science Behind It</h2>
       <div class="introductionText">
-        <p>Neurons pass information through electrical and chemical signals. When excitatory inputs arrive close together in the neuron, ion channels open and positively charged ions such as sodium (Na+) enter the receiving neuron. This makes its inside temporarily less negative. This triggers an action potential: a brief electrical impulse that travels along the neuron and helps pass information onward.</p>
-        <p>The Muse 2's detects the combined electrical fields from groups of similarly oriented neurons in the brain. When many neurons produce action potentials at roughly the same time, their tiny signals add together to create a measurable voltage difference. This is detected by electrodes, conductive sensors on the device. The Muse 2 collects data from the TP9 and TP10 electrodes, which are placed behind the ears, and the AF7 and AF8 electrodes, which are placed on the forehead. The device amplifies the small signal, converts it into numbers, and sends it to a computer. </p>
+        <p>Neurons communicate through electrical and chemical signals. Incoming signals open ion channels, changing the voltage across a neuron's membrane. Excitatory inputs can make the inside less negative; an action potential occurs only if the neuron reaches its firing threshold.</p>
+        <p>Scalp EEG mainly reflects the combined currents associated with incoming signals, called postsynaptic potentials, in many similarly oriented cortical neurons active together. It does not directly count individual action potentials. These currents produce tiny voltage differences that reach the scalp.</p>
+        <p>Electrodes are conductive sensors. Muse measures voltage at AF7 and AF8 on the forehead and TP9 and TP10 behind the ears relative to a reference electrode. It amplifies these small signals and converts them into digital samples. The recordings also contain eye, muscle, movement, and contact artifacts.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="1">
       <h2>How Blink Detection Works</h2>
       <div class="introductionText">
-        <p>ThinkTank uses the TP9 and TP10 channels for blinking. A blink creates a short downward spike in these signals.</p>
+        <p>ThinkTank looks for short downward deflections in TP9 and TP10 to detect blinks. These are eye-related artifacts mixed into the EEG recording, rather than a neural measure of engagement. Other artifacts can sometimes trigger the detector too.</p>
         <p>To look for the downward spike, the algorithm compares the newest 14 measurements with the 96 measurements immediately before them. It detects a blink when both channels fall at least 35 signal units below their recent baseline, their average drop is at least 70 units, and the drop is at least 2.8 times larger than the normal background noise. A very large spike reaching -400 units in either channel also counts.</p>
         <p>After a blink is detected, the five bubble fountains in the aquarium fade in together. A short cooldown prevents one blink from being counted several times.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="2">
-      <h2>How Concentration Is Estimated</h2>
+      <h2>EEG Engagement Estimate</h2>
       <div class="introductionText">
-        <p>ThinkTank uses the Muse 2's AF7 and AF8 EEG channels for its concentration estimate. The software examines around two seconds of recent data from both channels and averages them together.</p>
-        <p>EEG is made up of activity moving at many different speeds, which are measured in hertz (Hz), or cycles per second. They are often grouped into broad bands: theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). Theta and alpha are often associated with slower and relaxed activity, while beta is faster and is often associated with active mental processing.</p>
-        <p>The software measures the strength, or power, in each band and calculates: <strong>beta power / (alpha power + theta power)</strong>. More beta activity compared to alpha and theta produces a higher concentration score. The score is smoothed over time and reduced when the signal is noisy or there is strong movement. This reading is an estimate, and not a medical measurement. </p>
+        <p>ThinkTank calculates its EEG engagement estimate from AF7 and AF8, examining about two seconds of data from each channel separately. It calculates each channel's theta, alpha, and beta power, then averages the matching band powers. This preserves activity even when one channel's wave peaks as the other dips.</p>
+        <p>EEG contains fluctuations at different frequencies, measured in hertz (Hz), or cycles per second. The algorithm measures power, or signal strength, in theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). These bands can relate to several brain processes; none uniquely measures attention or relaxation.</p>
+        <p>It calculates <strong>beta power / (alpha power + theta power)</strong>, then maps ratios from 0.2 to 2.6 onto a 0-100 scale. Larger relative beta power raises the score. Large signal amplitudes, recent detected blinks, and motion reduce it, and smoothing makes changes gradual.</p>
+        <p>A score of 70 does not mean 70% focused. This experimental EEG engagement estimate controls fish speed; it is not a validated measure of attention. Eye and muscle activity or poor electrode contact can still affect it despite the adjustments.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="3">
       <h2>How Head Movement Works</h2>
       <div class="introductionText">
-        <p>The Muse 2 also provides motion data. Its gyroscope measures rotation around three axes. ThinkTank uses the Z axis to recognize left and right head turns.</p>
-        <p>For up-and-down movement, ThinkTank uses the accelerometer. Its readings show the direction of gravity relative to the headset, which lets the software estimate whether the headset is tilting up or down.</p>
-        <p>Both camera responses are smoothed so small movements produce gradual changes instead of sudden jumps.</p>
+        <p>Head movement comes from Muse's motion sensors, separately from EEG. The gyroscope measures rotation speed. A detected left turn narrows the camera's field of view to zoom in; a detected right turn widens it to zoom out.</p>
+        <p>The accelerometer estimates head tilt from gravity. ThinkTank uses changes in this estimate to adjust target radius: how far the point the camera looks at lies from the aquarium's center. Detected upward movement increases this radius; downward movement decreases it.</p>
+        <p>With the current camera position, increasing target radius makes the view less steeply downward; decreasing it makes the view more steeply downward. The camera stays in place and does not directly copy your head angle. Movement above a threshold gradually changes the view, which settles when you hold still. Both responses are smoothed.</p>
       </div>
     </div>
     <div class="introductionNavigation">
