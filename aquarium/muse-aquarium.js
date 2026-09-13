@@ -85,7 +85,8 @@
     alphaBand: [8, 12],
     betaBand: [13, 30],
     artifactAbsThreshold: 220,
-    recentBlinkPenaltyMs: 900
+    // Allow gentle camera movements; reserve motion rejection for faster turns.
+    motionThresholdDps: 45
   };
 
   var FISH_SPEED_CONFIG = {
@@ -144,7 +145,9 @@
       ratio: 0,
       signalQuality: "waiting",
       level: "medium",
-      lastComputedAt: 0
+      lastComputedAt: 0,
+      lastCheckedAt: 0,
+      lastMotionAt: 0
     },
     targetFieldOfView: null,
     targetRadius: null,
@@ -398,6 +401,8 @@
     state.headPitch.velocityDps = 0;
     state.focus.signalQuality = "waiting";
     state.focus.lastComputedAt = 0;
+    state.focus.lastCheckedAt = 0;
+    state.focus.lastMotionAt = 0;
     state.targetFishSpeed = state.baseFishSpeed;
     state.targetFishTailSpeed = state.baseFishTailSpeed;
     state.bubbles.visibleUntil = 0;
@@ -706,7 +711,14 @@
   }
 
   function detectFocus(now) {
-    if (now - state.focus.lastComputedAt < FOCUS_CONFIG.computeIntervalMs) return;
+    // Engagement uses its own threshold, separate from sensitive camera controls.
+    // Remember faster motion between spectral checks until its window clears.
+    if (Math.abs(state.smoothedYawDps || 0) > FOCUS_CONFIG.motionThresholdDps ||
+        Math.abs(state.headPitch.velocityDps || 0) > FOCUS_CONFIG.motionThresholdDps) {
+      state.focus.lastMotionAt = now;
+    }
+    if (now - state.focus.lastCheckedAt < FOCUS_CONFIG.computeIntervalMs) return;
+    state.focus.lastCheckedAt = now;
 
     var af7 = state.eeg[1];
     var af8 = state.eeg[2];
@@ -716,6 +728,22 @@
     var af7Window = windowFromEnd(af7, FOCUS_CONFIG.windowPoints);
     var af8Window = windowFromEnd(af8, FOCUS_CONFIG.windowPoints);
     if (!af7Window.length || !af8Window.length) return;
+
+    // Reject the entire analysis window. Keep the last valid score and powers
+    // untouched so artifacts never become an artificial drop in engagement.
+    var windowMs = 1000 * FOCUS_CONFIG.windowPoints / FOCUS_CONFIG.sampleRate;
+    var invalidSamples = af7Window.concat(af8Window).some(function(value) {
+      return !Number.isFinite(value) || Math.abs(value) > FOCUS_CONFIG.artifactAbsThreshold;
+    });
+    var recentBlink = state.blink.lastDetectedAt > 0 &&
+      now - state.blink.lastDetectedAt <= windowMs;
+    var recentMotion = state.focus.lastMotionAt > 0 &&
+      now - state.focus.lastMotionAt <= windowMs;
+    if (invalidSamples || recentBlink || recentMotion) {
+      state.focus.signalQuality = recentBlink ? "paused: blink" :
+        (recentMotion ? "paused: movement" : "paused: noisy signal");
+      return;
+    }
 
     // Calculate power before combining channels so opposite-phase waves cannot cancel.
     var channels = [
@@ -748,19 +776,6 @@
     var ratioClamped = clamp(ratio, 0.2, 2.6);
     var rawIndex = 100 * (ratioClamped - 0.2) / (2.6 - 0.2);
 
-    var recentMaxAbs = Math.max(maxAbsFromEnd(af7, 48), maxAbsFromEnd(af8, 48));
-    var artifactPenalty = recentMaxAbs > FOCUS_CONFIG.artifactAbsThreshold
-      ? clamp((recentMaxAbs - FOCUS_CONFIG.artifactAbsThreshold) / 220, 0, 0.55)
-      : 0;
-    var blinkPenalty = now - state.blink.lastDetectedAt <= FOCUS_CONFIG.recentBlinkPenaltyMs
-      ? 0.18
-      : 0;
-    var motionAmount = Math.max(
-      Math.abs(state.smoothedYawDps || 0),
-      Math.abs(state.headPitch.velocityDps || 0)
-    );
-    var motionPenalty = clamp(motionAmount / 160, 0, 0.2);
-    rawIndex = rawIndex * (1 - artifactPenalty) * (1 - blinkPenalty) * (1 - motionPenalty);
     rawIndex = clamp(rawIndex, 0, 100);
 
     state.focus.index = lerp(state.focus.index, rawIndex, FOCUS_CONFIG.smoothAlpha);
@@ -768,9 +783,7 @@
     state.focus.alphaPower = alphaPower;
     state.focus.betaPower = betaPower;
     state.focus.ratio = ratio;
-    state.focus.signalQuality = artifactPenalty >= 0.45
-      ? "noisy"
-      : (artifactPenalty >= 0.18 ? "fair" : "good");
+    state.focus.signalQuality = "good";
     state.focus.level = focusLevelFromIndex(state.focus.index);
     state.focus.lastComputedAt = now;
   }
@@ -966,7 +979,9 @@
           : "";
         setStatus("Turn: " + state.headTurn + " | Pitch: " + state.headPitch.motion +
           " | FOV: " + g.globals.fieldOfView.toFixed(0) + radiusText +
-          " | EEG engagement estimate: " + state.focus.index.toFixed(0) + speedText + " | Blinks: " +
+          " | EEG engagement estimate: " + state.focus.index.toFixed(0) +
+          (state.focus.signalQuality.indexOf("paused:") === 0
+            ? " (" + state.focus.signalQuality + ")" : "") + speedText + " | Blinks: " +
           state.blink.count + batteryText);
       }
     }

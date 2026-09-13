@@ -446,7 +446,7 @@ CANVAS {
       <div class="introductionText">
         <p>ThinkTank calculates its EEG engagement estimate from AF7 and AF8, examining about two seconds of data from each channel separately. It calculates each channel's theta, alpha, and beta power, then averages the matching band powers. This preserves activity even when one channel's wave peaks as the other dips.</p>
         <p>EEG contains fluctuations at different frequencies, measured in hertz (Hz), or cycles per second. The algorithm measures power, or signal strength, in theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). These bands can relate to several brain processes; none uniquely measures attention or relaxation.</p>
-        <p>It calculates <strong>beta power / (alpha power + theta power)</strong>, then maps ratios from 0.2 to 2.6 onto a 0-100 scale. Larger relative beta power raises the score. Large signal amplitudes, recent detected blinks, and motion reduce it, and smoothing makes changes gradual.</p>
+        <p>It calculates <strong>beta power / (alpha power + theta power)</strong>, then maps ratios from 0.2 to 2.6 onto a 0-100 scale. Larger relative beta power raises the score. Large signal amplitudes, detected blinks, or head movement pause the estimate at its last valid value until a clean two-second window is available. The stats show the reason for the pause; smoothing makes valid changes gradual.</p>
         <p>A score of 70 does not mean 70% focused. This experimental EEG engagement estimate controls fish speed; it is not a validated measure of attention. Eye and muscle activity or poor electrode contact can still affect it despite the adjustments.</p>
       </div>
     </div>
