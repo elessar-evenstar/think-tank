@@ -159,6 +159,61 @@
     animationFrameId: 0
   };
   var introductionSlideIndex = 0;
+  // Muse sends 12 samples per packet; counters wrap after 65535.
+  var EEG_STREAM_CONFIG = { staleMs: 500, samplesPerPacket: 12, maxPackets: 48 };
+  var eegPackets = [[], [], [], [], []];
+  var lastEngagementPacketAt = 0;
+  var lastBlinkPacketAt = 0;
+
+  function resetEEGStream() {
+    eegPackets = [[], [], [], [], []];
+    state.eeg = [[], [], [], [], []];
+    lastEngagementPacketAt = 0;
+    lastBlinkPacketAt = 0;
+    state.focus.index = 50;
+    state.focus.thetaPower = 0;
+    state.focus.alphaPower = 0;
+    state.focus.betaPower = 0;
+    state.focus.ratio = 0;
+    state.focus.level = "medium";
+    state.focus.signalQuality = "paused: waiting for EEG";
+    state.focus.lastComputedAt = 0;
+    state.focus.lastCheckedAt = 0;
+    state.focus.lastMotionAt = 0;
+    state.blink.aboveThreshold = false;
+    state.blink.lastDetectedAt = 0;
+    state.blink.score = 0;
+    state.blink.mode = "waiting for EEG";
+  }
+
+  function getAlignedEEG(first, second, count, now) {
+    var left = eegPackets[first];
+    var right = eegPackets[second];
+    if (!left.length || !right.length) return { reason: "waiting for EEG" };
+    if (now - left[left.length - 1].at > EEG_STREAM_CONFIG.staleMs ||
+        now - right[right.length - 1].at > EEG_STREAM_CONFIG.staleMs) {
+      return { reason: "EEG stream stalled" };
+    }
+    // Find the newest shared counter rather than assuming arrivals are simultaneous.
+    var i = left.length - 1;
+    var j = -1;
+    for (; i >= 0; i -= 1) {
+      j = right.findIndex(function(packet) { return packet.sequence === left[i].sequence; });
+      if (j >= 0) break;
+    }
+    if (j < 0) return { reason: "waiting for matching EEG" };
+    var at = Math.min(left[i].at, right[j].at);
+    if (now - at > EEG_STREAM_CONFIG.staleMs) return { reason: "waiting for matching EEG" };
+    var needed = Math.ceil(count / EEG_STREAM_CONFIG.samplesPerPacket);
+    if (i + 1 < needed || j + 1 < needed) return { reason: "collecting continuous EEG" };
+    var a = [];
+    var b = [];
+    for (var offset = needed - 1; offset >= 0; offset -= 1) {
+      a = a.concat(left[i - offset].samples);
+      b = b.concat(right[j - offset].samples);
+    }
+    return { first: a.slice(-count), second: b.slice(-count), at: at };
+  }
 
   function setStatus(message) {
     var status = document.getElementById("museStatus");
@@ -345,7 +400,7 @@
   function decodeEEG(event) {
     var data = event.target.value;
     data = data.buffer ? data : new DataView(data);
-    var bytes = new Uint8Array(data.buffer).subarray(2);
+    var bytes = new Uint8Array(data.buffer, data.byteOffset + 2, data.byteLength - 2);
     var samples = [];
 
     for (var i = 0; i < bytes.length; i += 1) {
@@ -360,11 +415,38 @@
   }
 
   function handleEEG(channel, event) {
+    if (!state.connected && !state.connecting) return;
+    var data = event.target.value;
+    if (!(data instanceof DataView)) data = new DataView(data);
+    var packets = eegPackets[channel];
+    if (data.byteLength !== 20) {
+      packets.length = 0;
+      state.eeg[channel] = [];
+      return;
+    }
+    var sequence = data.getUint16(0);
+    var now = Date.now();
+    var previous = packets[packets.length - 1];
+    if (previous) {
+      var step = (sequence - previous.sequence + 65536) % 65536;
+      var stale = now - previous.at > EEG_STREAM_CONFIG.staleMs;
+      // Ignore duplicate/late packets, but allow a restarted stream after a stall.
+      if (!stale && (step === 0 || step > 32768)) return;
+      if (stale || step !== 1) {
+        packets.length = 0;
+        state.eeg[channel] = [];
+      }
+    }
     var decoded = decodeEEG(event);
     var series = state.eeg[channel];
+    var samples = [];
     for (var i = 0; i < decoded.length; i += 1) {
-      series.push(0.48828125 * (decoded[i] - 0x800));
+      var value = 0.48828125 * (decoded[i] - 0x800);
+      samples.push(value);
+      series.push(value);
     }
+    packets.push({ sequence: sequence, at: now, samples: samples });
+    if (packets.length > EEG_STREAM_CONFIG.maxPackets) packets.shift();
     var maxEEGSamples = FOCUS_CONFIG.windowPoints + 32;
     if (series.length > maxEEGSamples) {
       series.splice(0, series.length - maxEEGSamples);
@@ -390,6 +472,7 @@
   }
 
   function handleDisconnect() {
+    resetEEGStream();
     state.connected = false;
     state.connecting = false;
     state.device = null;
@@ -399,7 +482,7 @@
     state.headPitch.initialized = false;
     state.headPitch.motion = "still";
     state.headPitch.velocityDps = 0;
-    state.focus.signalQuality = "waiting";
+    state.focus.signalQuality = "paused: waiting for EEG";
     state.focus.lastComputedAt = 0;
     state.focus.lastCheckedAt = 0;
     state.focus.lastMotionAt = 0;
@@ -428,6 +511,7 @@
     }
 
     state.connecting = true;
+    resetEEGStream();
     setButtonState("Connecting...", true);
     setStatus("Choose your Muse in the Bluetooth picker");
 
@@ -720,14 +804,16 @@
     if (now - state.focus.lastCheckedAt < FOCUS_CONFIG.computeIntervalMs) return;
     state.focus.lastCheckedAt = now;
 
-    var af7 = state.eeg[1];
-    var af8 = state.eeg[2];
-    var needed = FOCUS_CONFIG.windowPoints + 8;
-    if (Math.min(af7.length, af8.length) < needed) return;
-
-    var af7Window = windowFromEnd(af7, FOCUS_CONFIG.windowPoints);
-    var af8Window = windowFromEnd(af8, FOCUS_CONFIG.windowPoints);
-    if (!af7Window.length || !af8Window.length) return;
+    var aligned = getAlignedEEG(1, 2, FOCUS_CONFIG.windowPoints, now);
+    if (aligned.reason) {
+      state.focus.signalQuality = "paused: " + aligned.reason;
+      return;
+    }
+    // A repeated window must not keep nudging the smoothed estimate.
+    if (aligned.at <= lastEngagementPacketAt) return;
+    lastEngagementPacketAt = aligned.at;
+    var af7Window = aligned.first;
+    var af8Window = aligned.second;
 
     // Reject the entire analysis window. Keep the last valid score and powers
     // untouched so artifacts never become an artificial drop in engagement.
@@ -822,10 +908,17 @@
   }
 
   function detectBlink(now) {
-    var tp9 = state.eeg[0];
-    var tp10 = state.eeg[3];
     var minLength = BLINK_CONFIG.baselinePoints + BLINK_CONFIG.recentPoints + 2;
-    if (Math.min(tp9.length, tp10.length) < minLength) return;
+    var aligned = getAlignedEEG(0, 3, minLength, now);
+    if (aligned.reason) {
+      state.blink.mode = aligned.reason;
+      state.blink.aboveThreshold = false;
+      return;
+    }
+    if (aligned.at <= lastBlinkPacketAt) return;
+    lastBlinkPacketAt = aligned.at;
+    var tp9 = aligned.first;
+    var tp10 = aligned.second;
 
     var tp9Baseline = meanFromEnd(tp9, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
     var tp10Baseline = meanFromEnd(tp10, BLINK_CONFIG.baselinePoints, BLINK_CONFIG.recentPoints);
