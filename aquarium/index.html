@@ -79,6 +79,52 @@ CANVAS {
   color: white;
   display: none;
 }
+#modeToggle {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 30;
+  display: flex;
+  padding: 3px;
+  background: rgba(5,12,22,0.8);
+  border: 1px solid rgba(190,225,245,0.3);
+  border-radius: 6px;
+}
+#modeToggle button {
+  min-width: 76px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: white;
+  font: 14px sans-serif;
+  cursor: pointer;
+}
+#modeToggle button[aria-pressed="true"] {
+  background: rgba(190,225,245,0.25);
+}
+#modeToggle button:disabled { opacity: 0.45; cursor: default; }
+#modeToggle button:enabled:hover { background: rgba(190,225,245,0.35); }
+#modeToggle button:focus-visible { outline: 2px solid white; outline-offset: -2px; }
+#labScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 90px 20px 20px;
+  box-sizing: border-box;
+}
+#labScreen[hidden] { display: none; }
+#labPanel {
+  width: min(720px, 100%);
+  height: min(420px, 100%);
+  background: rgba(5,12,22,0.55);
+  border: 1px solid rgba(190,225,245,0.25);
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+}
 #startScreen {
   position: fixed;
   inset: 0;
@@ -389,6 +435,13 @@ CANVAS {
 </head>
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
+<div id="modeToggle" role="group" aria-label="Aquarium mode">
+  <button id="exploreModeButton" type="button" aria-pressed="true" disabled>Explore</button>
+  <button id="labModeButton" type="button" aria-pressed="false" aria-controls="labScreen" disabled>Lab</button>
+</div>
+<div id="labScreen" hidden>
+  <section id="labPanel" aria-label="BCI Lab"></section>
+</div>
 <div id="startScreen">
   <div id="startPanel" class="startPanel">
     <h1>ThinkTank</h1>

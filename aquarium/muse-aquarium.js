@@ -106,6 +106,7 @@
   };
 
   var state = {
+    mode: "explore",
     connected: false,
     connecting: false,
     device: null,
@@ -261,6 +262,47 @@
     var stats = document.getElementById("museStats");
     if (!stats) return;
     stats.style.display = visible ? "block" : "none";
+  }
+
+  function setMode(mode) {
+    if (mode !== "explore" && mode !== "lab") return;
+    var nextMode = state.connected ? mode : "explore";
+    if (nextMode !== state.mode) {
+      // Discard pending visual targets, not sensor history. Resume from what is visible.
+      state.targetFieldOfView = getAquariumFieldOfView();
+      state.targetRadius = getAquariumTargetRadius();
+      state.targetFishSpeed = getAquariumFishSpeed();
+      state.targetFishTailSpeed = getAquariumFishTailSpeed();
+      controlResumeAt = nextMode === "explore" && state.connected ? Date.now() : 0;
+      if (nextMode === "explore") {
+        // Lab blinks are never queued. Existing bubbles fade from their frozen opacity.
+        state.bubbles.visibleUntil = 0;
+        state.bubbles.fountains.forEach(function(fountain) { fountain.visibleUntil = 0; });
+      }
+    }
+    // Mode changes require an active Muse connection; disconnect returns to Explore.
+    state.mode = nextMode;
+    var explore = document.getElementById("exploreModeButton");
+    var lab = document.getElementById("labModeButton");
+    var screen = document.getElementById("labScreen");
+    if (explore) {
+      explore.disabled = !state.connected;
+      explore.setAttribute("aria-pressed", String(state.mode === "explore"));
+    }
+    if (lab) {
+      lab.disabled = !state.connected;
+      lab.setAttribute("aria-pressed", String(state.mode === "lab"));
+    }
+    if (screen) screen.hidden = state.mode !== "lab";
+  }
+
+  var controlResumeAt = 0;
+  function controlBlend(now) {
+    if (state.mode === "lab") return 0;
+    if (!controlResumeAt) return 1;
+    // Ease live control back in over 1.5 seconds after leaving Lab.
+    var progress = clamp((now - controlResumeAt) / 1500, 0, 1);
+    return progress * progress * (3 - 2 * progress);
   }
 
   function setEEGPanelVisible(visible) {
@@ -474,6 +516,7 @@
   function handleDisconnect() {
     resetEEGStream();
     state.connected = false;
+    setMode("explore");
     state.connecting = false;
     state.device = null;
     state.controlCharacteristic = null;
@@ -553,6 +596,7 @@
       await sendCommand("v1");
 
       state.connected = true;
+      setMode("explore");
       state.connecting = false;
       state.targetFieldOfView = getAquariumFieldOfView();
       state.targetRadius = getAquariumTargetRadius();
@@ -875,6 +919,7 @@
   }
 
   function updateFishSpeed() {
+    if (state.mode === "lab") return;
     if (!window.g || !g.globals || !Number.isFinite(g.globals.speed)) return;
     if (state.baseFishSpeed === null) state.baseFishSpeed = g.globals.speed;
     if (state.targetFishSpeed === null) state.targetFishSpeed = g.globals.speed;
@@ -899,11 +944,11 @@
     }
 
     g.globals.speed += (state.targetFishSpeed - g.globals.speed) *
-      FISH_SPEED_CONFIG.smoothAmount;
+      FISH_SPEED_CONFIG.smoothAmount * controlBlend(Date.now());
     if (g.fish && Number.isFinite(g.fish.fishTailSpeed) &&
         state.targetFishTailSpeed !== null) {
       g.fish.fishTailSpeed += (state.targetFishTailSpeed - g.fish.fishTailSpeed) *
-        FISH_SPEED_CONFIG.smoothAmount;
+        FISH_SPEED_CONFIG.smoothAmount * controlBlend(Date.now());
     }
   }
 
@@ -953,6 +998,11 @@
       var shouldStartBubbles = state.bubbles.opacity < 0.05 && now >= state.bubbles.visibleUntil;
       state.blink.count += 1;
       state.blink.lastDetectedAt = now;
+      // Keep detection active in Lab, without changing fountain state or emitters.
+      if (state.mode === "lab") {
+        state.blink.aboveThreshold = aboveThreshold;
+        return;
+      }
       state.bubbles.visibleUntil = 0;
       for (var fountain = 0; fountain < state.bubbles.fountains.length; fountain += 1) {
         var fountainState = state.bubbles.fountains[fountain];
@@ -981,6 +1031,8 @@
   }
 
   function updateBubbles(now, dt) {
+    if (state.mode === "lab") return;
+    dt *= controlBlend(now);
     var opacities = [];
     var maxOpacity = 0;
     for (var fountain = 0; fountain < state.bubbles.fountains.length; fountain += 1) {
@@ -1007,6 +1059,7 @@
     var dt = state.lastFrameTime ? Math.min((time - state.lastFrameTime) / 1000, 0.1) : 0;
     state.lastFrameTime = time;
     var now = Date.now();
+    var outputBlend = controlBlend(now);
 
     if (state.connected) detectBlink(now);
     if (state.connected) detectHeadPitch(now);
@@ -1029,7 +1082,7 @@
       var direction = state.smoothedYawDps < 0 ? -1 : 1;
       state.headTurn = direction < 0 ? "left" : "right";
       state.targetFieldOfView += direction * turnStrength *
-        HEAD_TURN_CONFIG.fovChangePerSecond * dt;
+        HEAD_TURN_CONFIG.fovChangePerSecond * dt * outputBlend;
       state.targetFieldOfView = Math.max(
         HEAD_TURN_CONFIG.minFieldOfView,
         Math.min(HEAD_TURN_CONFIG.maxFieldOfView, state.targetFieldOfView)
@@ -1046,7 +1099,7 @@
       );
       var pitchDirection = state.headPitch.motion === "up" ? 1 : -1;
       state.targetRadius += pitchDirection * pitchStrength *
-        HEAD_PITCH_CONFIG.radiusChangePerSecond * dt;
+        HEAD_PITCH_CONFIG.radiusChangePerSecond * dt * outputBlend;
       state.targetRadius = Math.max(
         HEAD_PITCH_CONFIG.minTargetRadius,
         Math.min(HEAD_PITCH_CONFIG.maxTargetRadius, state.targetRadius)
@@ -1055,14 +1108,15 @@
 
     if (window.g && g.globals && Number.isFinite(g.globals.fieldOfView)) {
       g.globals.fieldOfView += (state.targetFieldOfView - g.globals.fieldOfView) *
-        HEAD_TURN_CONFIG.fovSmoothAmount;
+        HEAD_TURN_CONFIG.fovSmoothAmount * outputBlend;
 
       if (Number.isFinite(g.globals.targetRadius)) {
         g.globals.targetRadius += (state.targetRadius - g.globals.targetRadius) *
-          HEAD_PITCH_CONFIG.radiusSmoothAmount;
+          HEAD_PITCH_CONFIG.radiusSmoothAmount * outputBlend;
       }
 
-      if (state.connected) {
+      // Keep the displayed stats frozen in Lab while sensor processing continues.
+      if (state.connected && state.mode === "explore") {
         var batteryText = Number.isFinite(state.battery) ? " | " + state.battery.toFixed(0) + "%" : "";
         var radiusText = Number.isFinite(g.globals.targetRadius)
           ? " | Radius: " + g.globals.targetRadius.toFixed(0)
@@ -1084,6 +1138,13 @@
   }
 
   document.addEventListener("DOMContentLoaded", function() {
+    setMode("explore");
+    document.getElementById("exploreModeButton").addEventListener("click", function() {
+      setMode("explore");
+    });
+    document.getElementById("labModeButton").addEventListener("click", function() {
+      setMode("lab");
+    });
     showStartPanel("start");
     setStartScreenVisible(true);
     setMuseStatsVisible(false);
