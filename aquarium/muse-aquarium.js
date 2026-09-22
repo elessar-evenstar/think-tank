@@ -90,8 +90,9 @@
   };
 
   var FISH_SPEED_CONFIG = {
+    // Restore a broad response, with a lower peak than the original 2.5x speed.
     minMultiplier: 0.45,
-    maxMultiplier: 2.5,
+    maxMultiplier: 2.1,
     smoothAmount: 0.1
   };
 
@@ -176,6 +177,7 @@
     state.focus.alphaPower = 0;
     state.focus.betaPower = 0;
     state.focus.ratio = 0;
+    state.focus.rawIndex = null;
     state.focus.level = "medium";
     state.focus.signalQuality = "paused: waiting for EEG";
     state.focus.lastComputedAt = 0;
@@ -267,6 +269,7 @@
   function setMode(mode) {
     if (mode !== "explore" && mode !== "lab") return;
     var nextMode = state.connected ? mode : "explore";
+    var modeChanged = nextMode !== state.mode;
     if (nextMode !== state.mode) {
       // Discard pending visual targets, not sensor history. Resume from what is visible.
       state.targetFieldOfView = getAquariumFieldOfView();
@@ -294,6 +297,7 @@
       lab.setAttribute("aria-pressed", String(state.mode === "lab"));
     }
     if (screen) screen.hidden = state.mode !== "lab";
+    if (modeChanged) document.dispatchEvent(new CustomEvent("musemodechange", { detail: state.mode }));
   }
 
   var controlResumeAt = 0;
@@ -909,6 +913,8 @@
     rawIndex = clamp(rawIndex, 0, 100);
 
     state.focus.index = lerp(state.focus.index, rawIndex, FOCUS_CONFIG.smoothAlpha);
+    // Expose the unsmoothed control score to distinguish saturation from smoothing.
+    state.focus.rawIndex = rawIndex;
     state.focus.thetaPower = thetaPower;
     state.focus.alphaPower = alphaPower;
     state.focus.betaPower = betaPower;
@@ -998,6 +1004,8 @@
       var shouldStartBubbles = state.bubbles.opacity < 0.05 && now >= state.bubbles.visibleUntil;
       state.blink.count += 1;
       state.blink.lastDetectedAt = now;
+      // Lab scores detector events separately from aquarium effects.
+      document.dispatchEvent(new CustomEvent("museblink", { detail: { time: performance.now() } }));
       // Keep detection active in Lab, without changing fountain state or emitters.
       if (state.mode === "lab") {
         state.blink.aboveThreshold = aboveThreshold;
@@ -1211,6 +1219,10 @@
 
   // Keep sensor and control state inspectable from the browser console.
   window.museAquarium = {
+    isBlinkReady: function() {
+      return state.connected && !getAlignedEEG(0, 3,
+        BLINK_CONFIG.baselinePoints + BLINK_CONFIG.recentPoints + 2, Date.now()).reason;
+    },
     state: state,
     config: HEAD_TURN_CONFIG,
     headPitchConfig: HEAD_PITCH_CONFIG,

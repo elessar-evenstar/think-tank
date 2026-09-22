@@ -120,10 +120,42 @@ CANVAS {
 #labPanel {
   width: min(720px, 100%);
   height: min(420px, 100%);
-  background: rgba(5,12,22,0.55);
+  background: rgba(5,12,22,0.85);
   border: 1px solid rgba(190,225,245,0.25);
   border-radius: 8px;
   box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+  box-sizing: border-box;
+  padding: 24px;
+  overflow-y: auto;
+  color: white;
+  font: 15px/1.5 sans-serif;
+}
+#labPanel h2 { font-size: 23px; margin: 0 0 18px; }
+#labPanel [hidden] { display: none; }
+.labActions { display: flex; justify-content: flex-end; margin-top: 24px; }
+.labActions button {
+  padding: 8px 20px; color: white; background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; cursor: pointer;
+  font: inherit;
+}
+.labActions button:hover { background: rgba(255,255,255,0.25); }
+#blinkCue {
+  height: 76px; display: flex; align-items: center; justify-content: center;
+}
+#blinkCue span { color: #a0a0a0; font-size: 42px; font-weight: bold; display: inline-block; }
+#blinkCue.pulse span { animation: blinkPrompt 650ms ease-out; }
+#blinkCue.detected span { color: #ff5353 !important; }
+@keyframes blinkPrompt {
+  0%, 100% { color: #a0a0a0; transform: scale(1); }
+  20%, 55% { color: #fff; transform: scale(1.12); }
+}
+#labEEG { display: block; width: 100%; height: 124px; margin-top: 12px; background: rgba(0,0,0,0.25); }
+#labProgress { text-align: center; min-height: 23px; margin: 8px 0; }
+.labCounts { display: flex; flex-wrap: wrap; justify-content: space-around; gap: 8px; }
+.labCounts span { white-space: nowrap; }
+@media (max-width: 600px) {
+  #labPanel { padding: 16px; }
+  #labPanel h2 { font-size: 20px; }
 }
 #startScreen {
   position: fixed;
@@ -431,7 +463,8 @@ CANVAS {
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js"></script>
+<script src="muse-aquarium.js?v=blink-lab-4"></script>
+<script src="bci-lab.js?v=3"></script>
 </head>
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
@@ -440,7 +473,34 @@ CANVAS {
   <button id="labModeButton" type="button" aria-pressed="false" aria-controls="labScreen" disabled>Lab</button>
 </div>
 <div id="labScreen" hidden>
-  <section id="labPanel" aria-label="BCI Lab"></section>
+  <section id="labPanel" aria-label="BCI Lab">
+    <div id="labIntro">
+      <h2>Lab 1: Blink Calibration</h2>
+      <p>This short session tests how often ThinkTank detects a blink in response to each of ten prompts. Watch your live TP9 and TP10 signals for brief downward spikes, which may be caused by blinks. At the end, you will see how many prompted trials had a detection, how many did not, and how many extra or unprompted detections occurred.</p>
+      <p>Sit comfortably and blink once when the word Blink grows and turns white, about every 2.6 seconds. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink; red is detection feedback.</p>
+      <p>Eye and head movements can also trigger detections. For your first run, keep your gaze near the center of the screen and limit head movement. In a separate run, you can deliberately move your eyes or head to explore how these movements affect the detector.</p>
+      <p>You can return to Explore at any time to end the session.</p>
+      <div class="labActions"><button id="labNext" type="button">Next</button></div>
+    </div>
+    <div id="labRunning" hidden>
+      <div id="blinkCue"><span>Blink</span></div>
+      <div id="labProgress" role="status">Get ready</div>
+      <div class="labCounts">
+        <span>Detected: <b id="labDetected">0</b></span>
+        <span>Not detected: <b id="labMissed">0</b></span>
+        <span>Unexpected: <b id="labUnexpected">0</b></span>
+      </div>
+      <canvas id="labEEG" width="640" height="124" role="img" aria-label="Live TP9 and TP10 EEG waveforms"></canvas>
+    </div>
+    <div id="labResults" hidden>
+      <h2>Blink Calibration Results</h2>
+      <p id="labResultStatus"></p>
+      <p id="labResultCounts"></p>
+      <p>A prompted trial counts as detected when a detection occurs within 1.6 seconds of the cue. Extra detections and detections outside that window count as unexpected.</p>
+      <p>These results compare detections with prompts, not independently verified blinks. Natural blinks can also appear as unexpected detections.</p>
+      <div class="labActions"><button id="labAgain" type="button">Run Again</button></div>
+    </div>
+  </section>
 </div>
 <div id="startScreen">
   <div id="startPanel" class="startPanel">
@@ -478,6 +538,14 @@ CANVAS {
         </ul>
       </div>
     </div>
+    <div class="introductionSlide" data-slide="modes">
+      <h2>Explore and Lab</h2>
+      <div class="introductionText">
+        <p><strong>Explore</strong> connects your Muse signals to the aquarium: blinks activate bubbles, the EEG engagement estimate changes fish speed, and head movements adjust the view.</p>
+        <p><strong>Lab</strong> keeps receiving and processing signals while holding the aquarium controls and stats at their current settings. The aquarium keeps animating. Switch back to Explore at any time to gradually resume live control without reconnecting.</p>
+        <p><strong>Blink Calibration</strong> compares ten prompted blinks with detector responses and shows the TP9 and TP10 signals. <strong>Artifact Explorer</strong>, a planned activity, will show how blinks and movement affect the recordings.</p>
+      </div>
+    </div>
     <div class="introductionSlide" data-slide="science">
       <h2>The Science Behind It</h2>
       <div class="introductionText">
@@ -513,7 +581,7 @@ CANVAS {
     </div>
     <div class="introductionNavigation">
       <button id="introductionPreviousButton" type="button" disabled>Previous</button>
-      <span id="introductionProgress" class="introductionProgress">1 / 5</span>
+      <span id="introductionProgress" class="introductionProgress">1 / 6</span>
       <button id="introductionNextButton" type="button">Next</button>
     </div>
   </div>
