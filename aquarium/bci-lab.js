@@ -11,7 +11,7 @@
 
   function element(id) { return document.getElementById(id); }
   function show(view) {
-    ["labIntro", "labRunning", "labResults"].forEach(function(id) {
+    ["labMenu", "labIntro", "labRunning", "labResults"].forEach(function(id) {
       element(id).hidden = id !== view;
     });
   }
@@ -130,12 +130,15 @@
   });
   document.addEventListener("musemodechange", function(event) {
     finish("Session ended early.");
-    if (event.detail === "lab") show("labIntro");
+    if (event.detail === "lab") show("labMenu");
   });
   document.addEventListener("visibilitychange", function() {
     if (document.hidden) finish("Session interrupted because the page was hidden. Run again when ready.");
   });
   document.addEventListener("DOMContentLoaded", function() {
+    element("labBlinkOption").addEventListener("click", function() { show("labIntro"); });
+    element("labReturnMenu").addEventListener("click", function() { show("labMenu"); });
+    element("labBack").addEventListener("click", function() { show("labMenu"); });
     element("labNext").addEventListener("click", start);
     element("labAgain").addEventListener("click", start);
   });

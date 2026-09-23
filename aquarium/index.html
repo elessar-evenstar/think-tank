@@ -133,6 +133,12 @@ CANVAS {
 #labPanel h2 { font-size: 23px; margin: 0 0 18px; }
 #labPanel [hidden] { display: none; }
 .labActions { display: flex; justify-content: flex-end; margin-top: 24px; }
+.labMenuOptions { flex-direction: column; gap: 16px; max-width: 300px; margin: 32px auto; }
+#labMenu h2 { text-align: center; }
+#labIntro { min-height: 100%; display: flex; flex-direction: column; }
+#labIntro .labActions { justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 24px; }
+#labResults { min-height: 100%; display: flex; flex-direction: column; }
+#labResults .labActions { justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 24px; }
 .labActions button {
   padding: 8px 20px; color: white; background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.5); border-radius: 4px; cursor: pointer;
@@ -464,7 +470,7 @@ CANVAS {
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
 <script src="muse-aquarium.js?v=blink-lab-4"></script>
-<script src="bci-lab.js?v=3"></script>
+<script src="bci-lab.js?v=5"></script>
 </head>
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
@@ -474,13 +480,23 @@ CANVAS {
 </div>
 <div id="labScreen" hidden>
   <section id="labPanel" aria-label="BCI Lab">
-    <div id="labIntro">
+    <div id="labMenu">
+      <h2>BCI Lab</h2>
+      <div class="labActions labMenuOptions">
+        <button id="labBlinkOption" type="button">Blink Calibration</button>
+        <button id="labArtifactOption" type="button">Artifact Explorer</button>
+      </div>
+    </div>
+    <div id="labIntro" hidden>
       <h2>Lab 1: Blink Calibration</h2>
       <p>This short session tests how often ThinkTank detects a blink in response to each of ten prompts. Watch your live TP9 and TP10 signals for brief downward spikes, which may be caused by blinks. At the end, you will see how many prompted trials had a detection, how many did not, and how many extra or unprompted detections occurred.</p>
       <p>Sit comfortably and blink once when the word Blink grows and turns white, about every 2.6 seconds. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink; red is detection feedback.</p>
       <p>Eye and head movements can also trigger detections. For your first run, keep your gaze near the center of the screen and limit head movement. In a separate run, you can deliberately move your eyes or head to explore how these movements affect the detector.</p>
       <p>You can return to Explore at any time to end the session.</p>
-      <div class="labActions"><button id="labNext" type="button">Next</button></div>
+      <div class="labActions">
+        <button id="labBack" type="button">Back</button>
+        <button id="labNext" type="button">Next</button>
+      </div>
     </div>
     <div id="labRunning" hidden>
       <div id="blinkCue"><span>Blink</span></div>
@@ -498,7 +514,10 @@ CANVAS {
       <p id="labResultCounts"></p>
       <p>A prompted trial counts as detected when a detection occurs within 1.6 seconds of the cue. Extra detections and detections outside that window count as unexpected.</p>
       <p>These results compare detections with prompts, not independently verified blinks. Natural blinks can also appear as unexpected detections.</p>
-      <div class="labActions"><button id="labAgain" type="button">Run Again</button></div>
+      <div class="labActions">
+        <button id="labAgain" type="button">Run Again</button>
+        <button id="labReturnMenu" type="button">Return To Menu</button>
+      </div>
     </div>
   </section>
 </div>
