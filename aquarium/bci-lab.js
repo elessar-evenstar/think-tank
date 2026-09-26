@@ -11,10 +11,12 @@
 
   function element(id) { return document.getElementById(id); }
   function show(view) {
-    ["labMenu", "labIntro", "labRunning", "labResults"].forEach(function(id) {
+    ["labMenu", "labIntro", "labRunning", "labResults", "artifactView"].forEach(function(id) {
       element(id).hidden = id !== view;
     });
+    element("labPanel").classList.toggle("artifactOpen", view === "artifactView");
   }
+  window.bciLab = { show: show };
   function counts() {
     var detected = session.trials.filter(function(trial) { return trial.detected; }).length;
     var missed = session.trials.filter(function(trial) { return trial.closed && !trial.detected; }).length;
@@ -30,6 +32,10 @@
     if (!session || !session.running) return;
     session.running = false;
     cancelAnimationFrame(frame);
+    // An interrupted response window is not evidence of a missed blink.
+    session.trials.forEach(function(trial) {
+      if (trial.detected || performance.now() > trial.at + responseMs) trial.closed = true;
+    });
     element("blinkCue").classList.remove("pulse", "detected");
     var result = counts();
     element("labResultStatus").textContent = message;
@@ -141,5 +147,12 @@
     element("labBack").addEventListener("click", function() { show("labMenu"); });
     element("labNext").addEventListener("click", start);
     element("labAgain").addEventListener("click", start);
+    element("labRunningBack").addEventListener("click", function() {
+      finish("Session ended early.");
+      show("labIntro");
+    });
+    element("labRunningNext").addEventListener("click", function() {
+      finish("Session ended early. Unfinished response windows and unstarted prompts are not counted as missed.");
+    });
   });
 })();

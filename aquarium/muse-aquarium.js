@@ -439,6 +439,10 @@
 
   function handleGyroscope(event) {
     state.gyroscope = decodeMotion(event, 0.0074768);
+    // Lab recordings observe incoming motion without changing aquarium controls.
+    document.dispatchEvent(new CustomEvent("musemotion", { detail: {
+      time: performance.now(), values: state.gyroscope.slice()
+    } }));
     var yawDps = state.gyroscope[HEAD_TURN_CONFIG.yawAxis] * HEAD_TURN_CONFIG.turnSign;
     state.smoothedYawDps += (yawDps - state.smoothedYawDps) * HEAD_TURN_CONFIG.gyroSmoothAmount;
   }
@@ -492,6 +496,10 @@
       series.push(value);
     }
     packets.push({ sequence: sequence, at: now, samples: samples });
+    // Publish accepted packets once, so the lab does not duplicate rolling samples.
+    document.dispatchEvent(new CustomEvent("museeeg", { detail: {
+      channel: channel, sequence: sequence, time: performance.now(), samples: samples.slice()
+    } }));
     if (packets.length > EEG_STREAM_CONFIG.maxPackets) packets.shift();
     var maxEEGSamples = FOCUS_CONFIG.windowPoints + 32;
     if (series.length > maxEEGSamples) {
