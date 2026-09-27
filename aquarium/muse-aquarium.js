@@ -930,6 +930,21 @@
     state.focus.signalQuality = "good";
     state.focus.level = focusLevelFromIndex(state.focus.index);
     state.focus.lastComputedAt = now;
+    // Frequency Lab observes the same accepted windows without changing controls.
+    if (state.mode === "lab" && window.frequencyLabActive) {
+      var spectrum = [];
+      for (var bin = 1; bin <= Math.floor(30 * channels[0].length / FOCUS_CONFIG.sampleRate); bin++) {
+        var hz = bin * FOCUS_CONFIG.sampleRate / channels[0].length;
+        var binPower = 0;
+        channels.forEach(function(samples) {
+          binPower += estimateBandPower(samples, FOCUS_CONFIG.sampleRate, hz, hz) / channels.length;
+        });
+        spectrum.push({ hz: hz, power: binPower });
+      }
+      document.dispatchEvent(new CustomEvent("musefrequency", { detail: {
+        spectrum: spectrum, bands: [thetaPower, alphaPower, betaPower], at: now
+      } }));
+    }
   }
 
   function updateFishSpeed() {

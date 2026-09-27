@@ -11,7 +11,7 @@
 
   function element(id) { return document.getElementById(id); }
   function show(view) {
-    ["labMenu", "labIntro", "labRunning", "labResults", "artifactView"].forEach(function(id) {
+    ["labMenu", "labIntro", "labRunning", "labResults", "artifactView", "frequencyView", "frequencyExercise"].forEach(function(id) {
       element(id).hidden = id !== view;
     });
     element("labPanel").classList.toggle("artifactOpen", view === "artifactView");

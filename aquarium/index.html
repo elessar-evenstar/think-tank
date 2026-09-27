@@ -138,13 +138,28 @@ CANVAS {
 .artifactGraphs figure { margin: 0; min-width: 0; }
 .artifactGraphs canvas { display: block; width: 100%; height: 200px; background: rgba(0,0,0,0.25); }
 #artifactLive { margin: 0; }
+#frequencyView { min-height: 100%; display: flex; flex-direction: column; }
+#frequencyView .labActions { justify-content: space-between; margin-top: auto; padding-top: 16px; }
+#frequencyCanvas { width: 100%; height: 200px; display: block; background: rgba(0,0,0,0.25); }
+#frequencyBars { display: grid; gap: 6px; margin: 12px 0; }
+#frequencyBars label { display: grid; grid-template-columns: 120px minmax(40px, 1fr) 70px; gap: 8px; align-items: center; }
+#frequencyBars meter { width: 100%; }
+#frequencyStatus { min-height: 24px; }
+#frequencyExercise { min-height: 100%; display: flex; flex-direction: column; }
+#frequencyExercise .labActions { justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: auto; padding-top: 16px; }
+#exerciseScore { font-size: 36px; text-align: center; min-height: 54px; margin: 8px 0; }
+#exerciseStatus { text-align: center; min-height: 24px; }
+#exerciseDescription, #exerciseSummary { margin: 0 0 16px; }
+#exerciseScore:empty, #exerciseStatus:empty { display: none; }
+#exerciseStatus.countdown { font-size: 32px; font-weight: bold; line-height: 1.3; }
+#exerciseCanvas { display: block; width: 100%; height: 180px; background: rgba(0,0,0,0.25); }
 #artifactLiveCanvas { display: block; width: 100%; height: 200px; background: rgba(0,0,0,0.25); }
 #artifactDescription, #artifactNote { margin: 0 0 16px; }
 #artifactStatus { font-size: 22px; min-height: 34px; text-align: center; }
 #artifactStatus:empty, #artifactNote:empty { display: none; }
 @media (max-width: 600px) { .artifactGraphs { grid-template-columns: 1fr; } }
 .labActions { display: flex; justify-content: flex-end; margin-top: 24px; }
-.labMenuOptions { flex-direction: column; gap: 16px; max-width: 300px; margin: 32px auto; }
+.labMenuOptions { flex-direction: column; gap: 32px; max-width: 300px; margin: 32px auto; }
 #labMenu h2 { text-align: center; }
 #labIntro { min-height: 100%; display: flex; flex-direction: column; }
 #labIntro .labActions { justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 24px; }
@@ -480,9 +495,11 @@ CANVAS {
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js?v=artifact-lab-1"></script>
-<script src="bci-lab.js?v=6"></script>
+<script src="muse-aquarium.js?v=frequency-lab-1"></script>
+<script src="bci-lab.js?v=8"></script>
 <script src="artifact-explorer.js?v=8"></script>
+<script src="frequency-explorer.js?v=3"></script>
+<script src="frequency-exercise.js?v=4"></script>
 </head>
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
@@ -497,6 +514,7 @@ CANVAS {
       <div class="labActions labMenuOptions">
         <button id="labBlinkOption" type="button">Blink Calibration</button>
         <button id="labArtifactOption" type="button">Artifact Explorer</button>
+        <button id="labFrequencyOption" type="button">Frequency Explorer</button>
       </div>
     </div>
     <div id="labIntro" hidden>
@@ -534,6 +552,35 @@ CANVAS {
         <button id="labAgain" type="button">Run Again</button>
         <button id="labReturnMenu" type="button">Return To Menu</button>
       </div>
+    </div>
+    <div id="frequencyExercise" hidden>
+      <h2 id="exerciseTitle"></h2>
+      <p id="exerciseDescription"></p>
+      <p id="exerciseScore" aria-label="EEG engagement estimate"></p>
+      <p id="exerciseStatus" role="status"></p>
+      <canvas id="exerciseCanvas" hidden role="img" aria-label="EEG engagement estimate over fifteen seconds, on a fixed zero to one hundred scale"></canvas>
+      <p id="exerciseSummary"></p>
+      <div class="labActions">
+        <button id="exerciseBack" type="button">Back</button>
+        <button id="exerciseAgain" type="button" hidden>Run Again</button>
+        <button id="exerciseNext" type="button">Start</button>
+      </div>
+    </div>
+    <div id="frequencyView" hidden>
+      <h2 id="frequencyTitle"></h2>
+      <p id="frequencyDescription"></p>
+      <p id="frequencyStatus" role="status"></p>
+      <canvas id="frequencyCanvas" role="img" aria-label="Frequency illustration or live AF7 and AF8 averaged power spectrum" hidden></canvas>
+      <div id="frequencyBars" hidden>
+        <label>Theta: 4-7 Hz <meter id="frequencyTheta" min="0" max="1" value="0"></meter><output id="frequencyThetaValue">--</output></label>
+        <label>Alpha: 8-12 Hz <meter id="frequencyAlpha" min="0" max="1" value="0"></meter><output id="frequencyAlphaValue">--</output></label>
+        <label>Beta: 13-30 Hz <meter id="frequencyBeta" min="0" max="1" value="0"></meter><output id="frequencyBetaValue">--</output></label>
+      </div>
+      <p id="frequencyNote"></p>
+      <details id="frequencyDetails" hidden><summary>Calculation details</summary>
+        <p>Each accepted window contains 512 samples (about two seconds) from AF7 and AF8. Each channel is mean-centered and Hann-windowed before calculating frequency power. Matching powers are then averaged across channels. Values use the existing algorithm's squared-voltage normalization, not a calibrated power spectral density. The display smooths updates; the vertical range is fixed after the first accepted window. Values beyond that range are clipped and reported.</p>
+      </details>
+      <div class="labActions"><button id="frequencyBack" type="button">Back</button><button id="frequencyNext" type="button">Next</button></div>
     </div>
     <div id="artifactView" hidden>
       <h2 id="artifactTitle">Lab 2: Artifact Explorer</h2>
