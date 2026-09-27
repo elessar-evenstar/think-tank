@@ -137,6 +137,8 @@ CANVAS {
 .artifactGraphs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .artifactGraphs figure { margin: 0; min-width: 0; }
 .artifactGraphs canvas { display: block; width: 100%; height: 200px; background: rgba(0,0,0,0.25); }
+#artifactLive { margin: 0; }
+#artifactLiveCanvas { display: block; width: 100%; height: 200px; background: rgba(0,0,0,0.25); }
 #artifactDescription, #artifactNote { margin: 0 0 16px; }
 #artifactStatus { font-size: 22px; min-height: 34px; text-align: center; }
 #artifactStatus:empty, #artifactNote:empty { display: none; }
@@ -480,7 +482,7 @@ CANVAS {
 <script src="aquarium.js"></script>
 <script src="muse-aquarium.js?v=artifact-lab-1"></script>
 <script src="bci-lab.js?v=6"></script>
-<script src="artifact-explorer.js?v=4"></script>
+<script src="artifact-explorer.js?v=8"></script>
 </head>
 <body>
 <div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
@@ -536,15 +538,19 @@ CANVAS {
     <div id="artifactView" hidden>
       <h2 id="artifactTitle">Lab 2: Artifact Explorer</h2>
       <p id="artifactDescription"></p>
+      <p id="artifactNote"></p>
       <p id="artifactStatus" role="status" aria-live="polite"></p>
+      <figure id="artifactLive" hidden>
+        <figcaption>Live recording</figcaption>
+        <canvas id="artifactLiveCanvas" role="img" aria-label="Live EEG from TP9, AF7, AF8, and TP10, with headband angular speed"></canvas>
+      </figure>
       <div id="artifactGraphs" class="artifactGraphs" hidden>
         <figure><figcaption>Still baseline</figcaption><canvas id="artifactBaseline" role="img" aria-label="Saved baseline: four EEG channels and angular speed"></canvas></figure>
         <figure id="artifactMovementFigure"><figcaption id="artifactMovementLabel">Movement</figcaption><canvas id="artifactMovement" role="img" aria-label="Saved movement: four EEG channels and angular speed"></canvas></figure>
       </div>
-      <p id="artifactNote"></p>
       <div id="artifactGuide" hidden>
-        <p>Each colored row shows one EEG channel, or recording location on the headband. Read from left to right to follow five seconds of recording.</p>
-        <p>Taller waves mean larger changes in recorded voltage, not necessarily more engagement. Eyes, muscles, and headband movement can also affect EEG. Both graphs use the same scale so you can compare them fairly.</p>
+        <p>Each colored row shows one EEG channel, or recording location on the headband. Read from left to right to follow four seconds of recording.</p>
+        <p>Taller waves mean larger changes in recorded voltage. Eyes, muscles, and headband movement can also affect EEG. Both graphs use the same scale so you can compare them fairly.</p>
         <p>Red dashed lines mark possible blinks flagged by the software, not confirmed blinks. The Motion row shows how fast the headband is turning, measured by its gyroscope.</p>
       </div>
       <details id="artifactTechnical" hidden>
