@@ -267,6 +267,7 @@
   }
 
   function setMode(mode) {
+    if (state.signalChecking && state.connected) return;
     if (mode !== "explore" && mode !== "lab") return;
     var nextMode = state.connected ? mode : "explore";
     var modeChanged = nextMode !== state.mode;
@@ -302,7 +303,7 @@
 
   var controlResumeAt = 0;
   function controlBlend(now) {
-    if (state.mode === "lab") return 0;
+    if (state.mode === "lab" || state.signalChecking) return 0;
     if (!controlResumeAt) return 1;
     // Ease live control back in over 1.5 seconds after leaving Lab.
     var progress = clamp((now - controlResumeAt) / 1500, 0, 1);
@@ -528,6 +529,8 @@
   function handleDisconnect() {
     resetEEGStream();
     state.connected = false;
+    state.signalChecking = false;
+    if (window.museSignalCheck) window.museSignalCheck.cancel();
     setMode("explore");
     state.connecting = false;
     state.device = null;
@@ -623,6 +626,17 @@
       updateEEGDisplay();
       setButtonState("muse connected", false);
       setStatus("Turn left to zoom in, right to zoom out");
+      // Check signal usability before enabling interactive aquarium controls.
+      state.signalChecking = true;
+      document.getElementById("exploreModeButton").disabled = true;
+      document.getElementById("labModeButton").disabled = true;
+      setMuseStatsVisible(false);
+      window.museSignalCheck.start(function() {
+        state.signalChecking = false;
+        controlResumeAt = Date.now();
+        setMode("explore");
+        setMuseStatsVisible(true);
+      });
     } catch (error) {
       console.error("Muse connection failed:", error);
       if (state.device && state.device.gatt.connected) state.device.gatt.disconnect();
@@ -948,7 +962,7 @@
   }
 
   function updateFishSpeed() {
-    if (state.mode === "lab") return;
+    if (state.mode === "lab" || state.signalChecking) return;
     if (!window.g || !g.globals || !Number.isFinite(g.globals.speed)) return;
     if (state.baseFishSpeed === null) state.baseFishSpeed = g.globals.speed;
     if (state.targetFishSpeed === null) state.targetFishSpeed = g.globals.speed;
@@ -1030,7 +1044,7 @@
       // Lab scores detector events separately from aquarium effects.
       document.dispatchEvent(new CustomEvent("museblink", { detail: { time: performance.now() } }));
       // Keep detection active in Lab, without changing fountain state or emitters.
-      if (state.mode === "lab") {
+      if (state.mode === "lab" || state.signalChecking) {
         state.blink.aboveThreshold = aboveThreshold;
         return;
       }
@@ -1062,7 +1076,7 @@
   }
 
   function updateBubbles(now, dt) {
-    if (state.mode === "lab") return;
+    if (state.mode === "lab" || state.signalChecking) return;
     dt *= controlBlend(now);
     var opacities = [];
     var maxOpacity = 0;
