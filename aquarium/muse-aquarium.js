@@ -85,6 +85,8 @@
     alphaBand: [8, 12],
     betaBand: [13, 30],
     artifactAbsThreshold: 220,
+    // Same near-flat threshold as startup screening, in microvolts after centering.
+    minSignalRms: 0.5,
     // Allow gentle camera movements; reserve motion rejection for faster turns.
     motionThresholdDps: 45
   };
@@ -221,6 +223,30 @@
   function setStatus(message) {
     var status = document.getElementById("museStatus");
     if (status) status.textContent = message;
+  }
+  var statsGoodSince = 0;
+  function updateStats(now) {
+    var values = {
+      statEngagement: state.focus.lastComputedAt ? state.focus.index.toFixed(0) : "--",
+      statBlinks: String(state.blink.count), statTurn: state.headTurn, statPitch: state.headPitch.motion,
+      statFov: g.globals.fieldOfView.toFixed(0),
+      statRadius: Number.isFinite(g.globals.targetRadius) ? g.globals.targetRadius.toFixed(0) : "--",
+      statSpeed: Number.isFinite(g.globals.speed) ? g.globals.speed.toFixed(2) : "--",
+      statBattery: Number.isFinite(state.battery) ? state.battery.toFixed(0) + "%" : "--"
+    };
+    Object.keys(values).forEach(function(id) {
+      var node = document.getElementById(id);
+      if (node && node.textContent !== values[id]) node.textContent = values[id];
+    });
+    // Delay only the visual recovery message, never the underlying calculations.
+    var quality = state.focus.signalQuality;
+    if (quality !== "good") {
+      statsGoodSince = 0;
+      setStatus("Engagement " + quality);
+    } else {
+      if (!statsGoodSince) statsGoodSince = now;
+      setStatus(now - statsGoodSince >= 1000 ? "Engagement updating" : "Engagement signal settling");
+    }
   }
 
   function setStartScreenVisible(visible) {
@@ -901,11 +927,18 @@
       return;
     }
 
+    // Check each frontal channel before combining them. A healthy channel must
+    // not hide a flat neighbor, including a constant nonzero sensor offset.
+    var centeredChannels = [removeMean(af7Window), removeMean(af8Window)];
+    for (var input = 0; input < centeredChannels.length; input++) {
+      var energy = centeredChannels[input].reduce(function(sum, value) { return sum + value * value; }, 0);
+      if (Math.sqrt(energy / centeredChannels[input].length) < FOCUS_CONFIG.minSignalRms) {
+        state.focus.signalQuality = "paused: near-flat " + (input === 0 ? "AF7" : "AF8");
+        return;
+      }
+    }
     // Calculate power before combining channels so opposite-phase waves cannot cancel.
-    var channels = [
-      applyHannWindow(removeMean(af7Window)),
-      applyHannWindow(removeMean(af8Window))
-    ];
+    var channels = centeredChannels.map(applyHannWindow);
     var thetaPower = 0;
     var alphaPower = 0;
     var betaPower = 0;
@@ -1162,19 +1195,7 @@
 
       // Keep the displayed stats frozen in Lab while sensor processing continues.
       if (state.connected && state.mode === "explore") {
-        var batteryText = Number.isFinite(state.battery) ? " | " + state.battery.toFixed(0) + "%" : "";
-        var radiusText = Number.isFinite(g.globals.targetRadius)
-          ? " | Radius: " + g.globals.targetRadius.toFixed(0)
-          : "";
-        var speedText = Number.isFinite(g.globals.speed)
-          ? " | Speed: " + g.globals.speed.toFixed(2)
-          : "";
-        setStatus("Turn: " + state.headTurn + " | Pitch: " + state.headPitch.motion +
-          " | FOV: " + g.globals.fieldOfView.toFixed(0) + radiusText +
-          " | EEG engagement estimate: " + state.focus.index.toFixed(0) +
-          (state.focus.signalQuality.indexOf("paused:") === 0
-            ? " (" + state.focus.signalQuality + ")" : "") + speedText + " | Blinks: " +
-          state.blink.count + batteryText);
+        updateStats(now);
       }
     }
     updateFishSpeed();

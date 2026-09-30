@@ -24,7 +24,7 @@
       var centered = value - mean;
       energy += centered * centered;
     });
-    if (Math.sqrt(energy / values.length) < 0.5) return "Needs adjustment";
+    if (Math.sqrt(energy / values.length) < window.museAquarium.focusConfig.minSignalRms) return "Needs adjustment";
     return "Signal looks usable";
   }
   function tick(now) {

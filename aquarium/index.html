@@ -401,6 +401,27 @@ CANVAS {
 }
 #museStats {
   display: none;
+  width: min(640px, calc(100% - 32px));
+  font: 12px/1.5 sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+#museStatGrid { display: grid; gap: 2px; }
+.museStatRow { display: flex; justify-content: center; align-items: center; gap: 6px; min-height: 18px; }
+.museStatItem { white-space: nowrap; }
+.museStatItem + .museStatItem::before { content: "|"; margin-right: 6px; color: #b8dfff; }
+.museStatItem b { display: inline-block; min-width: 3ch; text-align: left; font-weight: normal; }
+#statTurn, #statPitch { min-width: 5ch; }
+@media (max-width: 1200px) { #museStats { top: 82px; } }
+@media (max-width: 600px) {
+  .museStatRow { display: grid; grid-template-columns: auto auto; gap: 2px 6px; }
+  .museStatItem:nth-child(3)::before { content: none; }
+  #museStats { padding: 8px; }
+  #museStats #museStatus { height: 36px; }
+  #eegLivePanel.expanded { top: 250px; }
+}
+@media (max-width: 400px) {
+  .museStatRow:first-child .museStatItem:first-child { grid-column: 1 / -1; }
+  .museStatRow:first-child .museStatItem:nth-child(2)::before { content: none; }
 }
 #eegLivePanel {
   display: none;
@@ -456,7 +477,12 @@ CANVAS {
   display: block;
 }
 #museStatus {
-  margin: 0;
+  margin: 3px 0 0;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   color: #b8dfff;
   font-size: 12px;
   line-height: 1.45;
@@ -505,8 +531,8 @@ CANVAS {
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js?v=signal-check-1"></script>
-<script src="signal-check.js?v=2"></script>
+<script src="muse-aquarium.js?v=stable-stats-1"></script>
+<script src="signal-check.js?v=3"></script>
 <script src="bci-lab.js?v=8"></script>
 <script src="artifact-explorer.js?v=8"></script>
 <script src="frequency-explorer.js?v=3"></script>
@@ -544,13 +570,13 @@ CANVAS {
     <div id="labMenu">
       <h2>BCI Lab</h2>
       <div class="labActions labMenuOptions">
-        <button id="labBlinkOption" type="button">Blink Calibration</button>
+        <button id="labBlinkOption" type="button">Blink Explorer</button>
         <button id="labArtifactOption" type="button">Artifact Explorer</button>
         <button id="labFrequencyOption" type="button">Frequency Explorer</button>
       </div>
     </div>
     <div id="labIntro" hidden>
-      <h2>Lab 1: Blink Calibration</h2>
+      <h2>Lab 1: Blink Explorer</h2>
       <p>This short session tests how often ThinkTank detects a blink in response to each of ten prompts. Watch your live TP9 and TP10 signals for brief downward spikes, which may be caused by blinks. At the end, you will see how many prompted trials had a detection, how many did not, and how many extra or unprompted detections occurred.</p>
       <p>Sit comfortably and blink once when the word Blink grows and turns white, about every 2.6 seconds. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink; red is detection feedback.</p>
       <p>Eye and head movements can also trigger detections. Keep your gaze near the center of the screen and limit head movement to minimize false detections.</p>
@@ -575,7 +601,7 @@ CANVAS {
       </div>
     </div>
     <div id="labResults" hidden>
-      <h2>Blink Calibration Results</h2>
+      <h2>Blink Explorer Results</h2>
       <p id="labResultStatus"></p>
       <p id="labResultCounts"></p>
       <p>A prompted trial counts as detected when a detection occurs within 1.6 seconds of the cue. Extra detections and detections outside that window count as unexpected.</p>
@@ -685,7 +711,7 @@ CANVAS {
       <div class="introductionText">
         <p><strong>Explore</strong> connects your Muse signals to the aquarium: blinks activate bubbles, the EEG engagement estimate changes fish speed, and head movements adjust the view.</p>
         <p><strong>Lab</strong> keeps receiving and processing signals while holding the aquarium controls and stats at their current settings. The aquarium keeps animating. Switch back to Explore at any time to gradually resume live control without reconnecting.</p>
-        <p><strong>Blink Calibration</strong> compares ten prompted blinks with detector responses and shows the TP9 and TP10 signals. <strong>Artifact Explorer</strong> compares saved still and head-movement recordings so you can explore movement artifacts at your own pace.</p>
+        <p><strong>Blink Explorer</strong> compares ten prompted blinks with detector responses and shows the TP9 and TP10 signals. <strong>Artifact Explorer</strong> compares saved still and head-movement recordings so you can explore movement artifacts at your own pace.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="science">
@@ -729,6 +755,20 @@ CANVAS {
   </div>
 </div>
 <div id="museStats" class="fpsContainer">
+  <div id="museStatGrid">
+    <div class="museStatRow">
+      <span class="museStatItem">EEG engagement estimate: <b id="statEngagement">--</b></span>
+      <span class="museStatItem">Blinks: <b id="statBlinks">0</b></span>
+      <span class="museStatItem">Turn: <b id="statTurn">still</b></span>
+      <span class="museStatItem">Pitch: <b id="statPitch">still</b></span>
+    </div>
+    <div class="museStatRow">
+      <span class="museStatItem">FOV: <b id="statFov">--</b></span>
+      <span class="museStatItem">Radius: <b id="statRadius">--</b></span>
+      <span class="museStatItem">Speed: <b id="statSpeed">--</b></span>
+      <span class="museStatItem">Battery: <b id="statBattery">--</b></span>
+    </div>
+  </div>
   <div id="museStatus">Muse disconnected</div>
   <div class="fps">fps: <span id="fps"></span></div>
   <div class="fps">canvas width: <span id="canvasWidth"></span></div>
