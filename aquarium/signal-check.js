@@ -51,7 +51,39 @@
       allGood && !accepted ? "Waiting for the engagement algorithm to accept a fresh EEG window. Brief blinks or movement may delay this." :
       allGood ? "Signals look usable. Checking that they stay steady..." : "Waiting for all four channels to settle. A blink may briefly delay the check; adjust the fit if a warning persists.";
     if (now - started >= 30000) { el("signalSkip").hidden = false; el("signalWarning").hidden = false; }
+    draw(now);
     frame = requestAnimationFrame(tick);
+  }
+  function draw(now) {
+    var canvas = el("signalCheckGraph"), ctx = canvas.getContext("2d");
+    var width = Math.max(1, canvas.clientWidth), ratio = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(192 * ratio)) {
+      canvas.width = Math.round(width * ratio); canvas.height = Math.round(192 * ratio);
+    }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, 192);
+    var names = ["TP9", "AF7", "AF8", "TP10"], colors = ["#8dd3ff", "#a5efb3", "#ffe49b", "#ff9fb3"];
+    history.forEach(function(packets, channel) {
+      var center = 22 + channel * 43;
+      ctx.font = "12px sans-serif"; ctx.fillStyle = colors[channel];
+      ctx.fillText(names[channel], 3, center + 4);
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.beginPath(); ctx.moveTo(42, center); ctx.lineTo(width - 4, center); ctx.stroke();
+      ctx.strokeStyle = colors[channel]; ctx.beginPath();
+      var previousTime = null;
+      // Use packet arrival timing; never stretch old data to look like a live stream.
+      packets.forEach(function(packet) {
+        packet.samples.forEach(function(value, i) {
+          var time = packet.time - (packet.samples.length - 1 - i) * 1000 / 256;
+          if (time < now - 2000 || time > now || !Number.isFinite(value)) { previousTime = null; return; }
+          var x = 42 + (time - now + 2000) / 2000 * (width - 46);
+          var y = center - Math.max(-1, Math.min(1, value / 250)) * 18;
+          if (previousTime === null || time - previousTime > 100) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          previousTime = time;
+        });
+      });
+      ctx.stroke();
+    });
+    ctx.fillStyle = "white"; ctx.fillText("-2s", 42, 187); ctx.fillText("now", width - 28, 187);
   }
   function cancel() { active = false; cancelAnimationFrame(frame); el("signalCheck").hidden = true; }
   function proceed() {

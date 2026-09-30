@@ -92,6 +92,8 @@
   };
 
   var FISH_SPEED_CONFIG = {
+    holdMs: 3000,
+    baselineReturnSeconds: 1.5,
     // Restore a broad response, with a lower peak than the original 2.5x speed.
     minMultiplier: 0.45,
     maxMultiplier: 2.1,
@@ -240,9 +242,13 @@
     });
     // Delay only the visual recovery message, never the underlying calculations.
     var quality = state.focus.signalQuality;
-    if (quality !== "good") {
+    var stale = state.focus.lastComputedAt > 0 && now - state.focus.lastComputedAt > FISH_SPEED_CONFIG.holdMs;
+    if (stale) {
       statsGoodSince = 0;
-      setStatus("Engagement " + quality);
+      setStatus("Engagement held: signal unavailable; speed returning to baseline");
+    } else if (quality !== "good") {
+      statsGoodSince = 0;
+      setStatus("Engagement " + quality + (state.focus.lastComputedAt ? " (estimate held)" : ""));
     } else {
       if (!statsGoodSince) statsGoodSince = now;
       setStatus(now - statsGoodSince >= 1000 ? "Engagement updating" : "Engagement signal settling");
@@ -994,7 +1000,11 @@
     }
   }
 
+  var lastFishSpeedUpdateAt = 0;
   function updateFishSpeed() {
+    var now = Date.now();
+    var elapsed = lastFishSpeedUpdateAt ? Math.max(0, Math.min((now - lastFishSpeedUpdateAt) / 1000, 0.1)) : 1 / 60;
+    lastFishSpeedUpdateAt = now;
     if (state.mode === "lab" || state.signalChecking) return;
     if (!window.g || !g.globals || !Number.isFinite(g.globals.speed)) return;
     if (state.baseFishSpeed === null) state.baseFishSpeed = g.globals.speed;
@@ -1006,7 +1016,9 @@
       state.targetFishTailSpeed = getAquariumFishTailSpeed();
     }
 
-    if (state.connected && state.focus.lastComputedAt) {
+    var recentEstimate = state.connected && state.focus.lastComputedAt > 0 &&
+      now - state.focus.lastComputedAt <= FISH_SPEED_CONFIG.holdMs;
+    if (recentEstimate) {
       var focusFraction = clamp(state.focus.index / 100, 0, 1);
       var multiplier = lerp(
         FISH_SPEED_CONFIG.minMultiplier,
@@ -1017,14 +1029,19 @@
       if (state.baseFishTailSpeed !== null) {
         state.targetFishTailSpeed = state.baseFishTailSpeed * multiplier;
       }
+    } else {
+      // A missing estimate is not low engagement. Return only visual controls to baseline.
+      state.targetFishSpeed = state.baseFishSpeed;
+      state.targetFishTailSpeed = state.baseFishTailSpeed;
     }
-
+    var smooth = recentEstimate ? FISH_SPEED_CONFIG.smoothAmount :
+      1 - Math.exp(-elapsed / FISH_SPEED_CONFIG.baselineReturnSeconds);
     g.globals.speed += (state.targetFishSpeed - g.globals.speed) *
-      FISH_SPEED_CONFIG.smoothAmount * controlBlend(Date.now());
+      smooth * controlBlend(now);
     if (g.fish && Number.isFinite(g.fish.fishTailSpeed) &&
         state.targetFishTailSpeed !== null) {
       g.fish.fishTailSpeed += (state.targetFishTailSpeed - g.fish.fishTailSpeed) *
-        FISH_SPEED_CONFIG.smoothAmount * controlBlend(Date.now());
+        smooth * controlBlend(now);
     }
   }
 

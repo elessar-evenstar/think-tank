@@ -156,6 +156,7 @@ CANVAS {
 #signalCheck[hidden] { display: none; }
 #signalCheckPanel { width: min(620px, 100%); max-height: 85vh; overflow-y: auto; padding: 24px; box-sizing: border-box; background: rgba(5,12,22,0.94); color: white; border-radius: 8px; font: 15px/1.5 sans-serif; }
 #signalCheckPanel h2 { margin-top: 0; }
+#signalCheckGraph { display: block; width: 100%; height: 192px; background: rgba(0,0,0,0.25); }
 #signalChannels { list-style: none; padding: 0; }
 #signalChannels li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #53626b; }
 #signalChannels [data-quality="good"] { color: #a5efb3; }
@@ -531,11 +532,11 @@ CANVAS {
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js?v=stable-stats-1"></script>
-<script src="signal-check.js?v=3"></script>
+<script src="muse-aquarium.js?v=stale-feedback-1"></script>
+<script src="signal-check.js?v=4"></script>
 <script src="bci-lab.js?v=8"></script>
-<script src="artifact-explorer.js?v=8"></script>
-<script src="frequency-explorer.js?v=3"></script>
+<script src="artifact-explorer.js?v=9"></script>
+<script src="frequency-explorer.js?v=4"></script>
 <script src="frequency-exercise.js?v=4"></script>
 </head>
 <body>
@@ -550,6 +551,8 @@ CANVAS {
       <li><span>AF8 - right forehead</span><strong id="signal2">Checking</strong></li>
       <li><span>TP10 - behind right ear</span><strong id="signal3">Checking</strong></li>
     </ul>
+    <canvas id="signalCheckGraph" role="img" aria-label="Live EEG traces from TP9, AF7, AF8 and TP10 over the last two seconds"></canvas>
+    <p>Live EEG includes brain activity and signals from eyes, muscles, and movement. Each row uses the same fixed +/-250 microvolt range; larger values are clipped at the edges.</p>
     <p id="signalProgress" role="status"></p>
     <details><summary>Placement help</summary><p>Position the headband across your forehead with the ear pieces resting behind your ears. Keep hair away from the sensors and make sure the forehead and behind-ear sensors touch your skin. Adjust gently for a snug, comfortable fit.</p></details>
     <p>This is a signal-usability check, not a measurement of contact impedance or a guarantee of artifact-free EEG. Detection thresholds stay unchanged.</p>
@@ -557,12 +560,12 @@ CANVAS {
     <div class="labActions">
       <button id="signalRetry" type="button">Check Again</button>
       <button id="signalSkip" type="button" hidden>Continue Anyway</button>
-      <button id="signalContinue" type="button" disabled>Continue to Aquarium</button>
+      <button id="signalContinue" type="button" disabled>Continue to Tank</button>
     </div>
   </section>
 </div>
 <div id="modeToggle" role="group" aria-label="Aquarium mode">
-  <button id="exploreModeButton" type="button" aria-pressed="true" disabled>Explore</button>
+  <button id="exploreModeButton" type="button" aria-pressed="true" disabled>Tank</button>
   <button id="labModeButton" type="button" aria-pressed="false" aria-controls="labScreen" disabled>Lab</button>
 </div>
 <div id="labScreen" hidden>
@@ -580,7 +583,7 @@ CANVAS {
       <p>This short session tests how often ThinkTank detects a blink in response to each of ten prompts. Watch your live TP9 and TP10 signals for brief downward spikes, which may be caused by blinks. At the end, you will see how many prompted trials had a detection, how many did not, and how many extra or unprompted detections occurred.</p>
       <p>Sit comfortably and blink once when the word Blink grows and turns white, about every 2.6 seconds. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink; red is detection feedback.</p>
       <p>Eye and head movements can also trigger detections. Keep your gaze near the center of the screen and limit head movement to minimize false detections.</p>
-      <p>You can return to Explore at any time to end the session.</p>
+      <p>You can return to Tank at any time to end the session.</p>
       <div class="labActions">
         <button id="labBack" type="button">Back</button>
         <button id="labNext" type="button">Next</button>
@@ -707,10 +710,10 @@ CANVAS {
       </div>
     </div>
     <div class="introductionSlide" data-slide="modes">
-      <h2>Explore and Lab</h2>
+      <h2>Tank and Lab</h2>
       <div class="introductionText">
-        <p><strong>Explore</strong> connects your Muse signals to the aquarium: blinks activate bubbles, the EEG engagement estimate changes fish speed, and head movements adjust the view.</p>
-        <p><strong>Lab</strong> keeps receiving and processing signals while holding the aquarium controls and stats at their current settings. The aquarium keeps animating. Switch back to Explore at any time to gradually resume live control without reconnecting.</p>
+        <p><strong>Tank</strong> connects your Muse signals to the aquarium: blinks activate bubbles, the EEG engagement estimate changes fish speed, and head movements adjust the view.</p>
+        <p><strong>Lab</strong> keeps receiving and processing signals while holding the aquarium controls and stats at their current settings. The aquarium keeps animating. Switch back to Tank at any time to gradually resume live control without reconnecting.</p>
         <p><strong>Blink Explorer</strong> compares ten prompted blinks with detector responses and shows the TP9 and TP10 signals. <strong>Artifact Explorer</strong> compares saved still and head-movement recordings so you can explore movement artifacts at your own pace.</p>
       </div>
     </div>

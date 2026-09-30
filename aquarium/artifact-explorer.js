@@ -32,7 +32,7 @@
   function introduction() {
     phase = "intro";
     screen("Lab 2: Artifact Explorer", "See how jaw clenching and head movements can change the signals recorded by your Muse. First, record four seconds while sitting still. This is your baseline: a starting point for comparison. Then try a brief, gentle jaw clench and four gentle head movements, recording four seconds for each action. Compare each recording with that same baseline.");
-    el("artifactNote").textContent = "Signals appear live while recording, and you can review them afterward. You do not need to watch while turning your head. The aquarium controls stay frozen in Lab. You can return to Explore at any time. Recordings stay in this page's memory and are not uploaded.";
+    el("artifactNote").textContent = "Signals appear live while recording, and you can review them afterward. You do not need to watch while turning your head. The aquarium controls stay frozen in Lab. You can return to Tank at any time. Recordings stay in this page's memory and are not uploaded.";
   }
   function guide() {
     phase = "guide";

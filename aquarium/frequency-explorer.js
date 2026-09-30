@@ -36,7 +36,7 @@
       tick();
     } else {
       el("frequencyTitle").textContent = "How This Connects to the Aquarium";
-      el("frequencyDescription").textContent = "ThinkTank combines these band powers using beta / (alpha + theta). It maps that ratio to a smoothed 0-100 EEG engagement estimate to control fish speed in Explore mode.";
+      el("frequencyDescription").textContent = "ThinkTank combines these band powers using beta / (alpha + theta). It maps that ratio to a smoothed 0-100 EEG engagement estimate to control fish speed in Tank mode.";
       el("frequencyNote").textContent = "This is an experimental engagement estimate, not an exact measurement or a percentage of engagement. Eye, muscle, and movement signals can affect it. Frequency Explorer uses the same signal checks and holds its last accepted result when a window is rejected.";
     }
   }
