@@ -465,9 +465,17 @@ CANVAS {
   color: white;
   font-size: 10px;
 }
-#eegLivePanel.expanded {
+#eegLivePanel.expanded, #eegLivePanel:has(#quickControls[open]) {
   width: 242px;
 }
+#quickControls { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); }
+#quickControls summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: #b8dfff; list-style: none; }
+#quickControls summary::-webkit-details-marker { display: none; }
+#quickControls summary::after { content: "\25BC"; font-size: 10px; }
+#quickControls[open] summary::after { content: "\25B2"; }
+#quickControls summary:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+#quickControls p { margin: 8px 0 0; line-height: 1.4; }
+@media (max-width: 600px) { #eegLivePanel:has(#quickControls[open]) { top: 250px; } }
 #eegGraph {
   display: none;
   width: 220px;
@@ -793,6 +801,14 @@ CANVAS {
   </button>
   <canvas id="eegGraph" width="220" height="120" role="img"
     aria-label="Live waveforms for TP9, AF7, AF8, and TP10"></canvas>
+  <details id="quickControls">
+    <summary>Controls</summary>
+    <p>Blink to activate bubbles.</p>
+    <p>A higher EEG engagement estimate speeds up the fish.</p>
+    <p>Move your head up or down to adjust the camera view.</p>
+    <p>Turn left to zoom in; turn right to zoom out.</p>
+    <p>Switch to Lab to pause tank controls.</p>
+  </details>
 </div>
 <div id="uiContainer">
 <div id="ui"></div>
