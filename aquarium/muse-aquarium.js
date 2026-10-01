@@ -80,7 +80,8 @@
     sampleRate: 256,
     windowPoints: 512,
     computeIntervalMs: 600,
-    smoothAlpha: 0.06,
+    // With continuous valid EEG: about 63% of a change in 3s, 95% in 9s.
+    smoothingSeconds: 3,
     thetaBand: [4, 7],
     alphaBand: [8, 12],
     betaBand: [13, 30],
@@ -144,13 +145,13 @@
       lastUpdatedAt: 0
     },
     focus: {
-      index: 50,
+      index: null,
       thetaPower: 0,
       alphaPower: 0,
       betaPower: 0,
       ratio: 0,
       signalQuality: "waiting",
-      level: "medium",
+      level: "collecting",
       lastComputedAt: 0,
       lastCheckedAt: 0,
       lastMotionAt: 0
@@ -176,13 +177,13 @@
     state.eeg = [[], [], [], [], []];
     lastEngagementPacketAt = 0;
     lastBlinkPacketAt = 0;
-    state.focus.index = 50;
+    state.focus.index = null;
     state.focus.thetaPower = 0;
     state.focus.alphaPower = 0;
     state.focus.betaPower = 0;
     state.focus.ratio = 0;
     state.focus.rawIndex = null;
-    state.focus.level = "medium";
+    state.focus.level = "collecting";
     state.focus.signalQuality = "paused: waiting for EEG";
     state.focus.lastComputedAt = 0;
     state.focus.lastCheckedAt = 0;
@@ -270,7 +271,10 @@
     // Delay only the visual recovery message, never the underlying calculations.
     var quality = state.focus.signalQuality;
     var stale = state.focus.lastComputedAt > 0 && now - state.focus.lastComputedAt > FISH_SPEED_CONFIG.holdMs;
-    if (stale) {
+    if (!state.focus.lastComputedAt) {
+      statsGoodSince = 0;
+      setStatus("Collecting EEG");
+    } else if (stale) {
       statsGoodSince = 0;
       setStatus("Engagement held: signal unavailable; speed returning to baseline");
     } else if (quality !== "good") {
@@ -1005,7 +1009,15 @@
 
     rawIndex = clamp(rawIndex, 0, 100);
 
-    state.focus.index = lerp(state.focus.index, rawIndex, FOCUS_CONFIG.smoothAlpha);
+    if (!state.focus.lastComputedAt || !Number.isFinite(state.focus.index)) {
+      // The first accepted window is a measurement, not a blend with a made-up 50.
+      state.focus.index = rawIndex;
+    } else {
+      // Do not count a rejected-data gap as time spent observing a new value.
+      var elapsedMs = Math.min(Math.max(0, now - state.focus.lastComputedAt), FOCUS_CONFIG.computeIntervalMs);
+      var smoothing = 1 - Math.exp(-elapsedMs / (FOCUS_CONFIG.smoothingSeconds * 1000));
+      state.focus.index = lerp(state.focus.index, rawIndex, smoothing);
+    }
     // Expose the unsmoothed control score to distinguish saturation from smoothing.
     state.focus.rawIndex = rawIndex;
     state.focus.thetaPower = thetaPower;
