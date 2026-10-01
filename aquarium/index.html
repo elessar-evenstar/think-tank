@@ -406,6 +406,9 @@ CANVAS {
   font: 12px/1.5 sans-serif;
   font-variant-numeric: tabular-nums;
 }
+body.tankIntroductionOpen #museStats,
+body.tankIntroductionOpen #modeToggle,
+body.tankIntroductionOpen #eegLivePanel { display: none !important; }
 #museStatGrid { display: grid; gap: 2px; }
 .museStatRow { display: flex; justify-content: center; align-items: center; gap: 6px; min-height: 18px; }
 .museStatItem { white-space: nowrap; }
@@ -475,6 +478,9 @@ CANVAS {
 #quickControls[open] summary::after { content: "\25B2"; }
 #quickControls summary:focus-visible { outline: 2px solid white; outline-offset: 3px; }
 #quickControls p { margin: 8px 0 0; line-height: 1.4; }
+#tankIntroductionButton { display: block; width: 100%; margin-top: 10px; padding: 6px; border: 1px solid rgba(255,255,255,0.4); border-radius: 4px; background: transparent; color: #b8dfff; font: inherit; cursor: pointer; }
+#tankIntroductionButton:hover { background: rgba(255,255,255,0.12); }
+#tankIntroductionButton:disabled { opacity: 0.45; cursor: default; }
 @media (max-width: 600px) { #eegLivePanel:has(#quickControls[open]) { top: 250px; } }
 #eegGraph {
   display: none;
@@ -540,7 +546,7 @@ CANVAS {
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js?v=stale-feedback-1"></script>
+<script src="muse-aquarium.js?v=tank-introduction-2"></script>
 <script src="signal-check.js?v=4"></script>
 <script src="bci-lab.js?v=8"></script>
 <script src="artifact-explorer.js?v=9"></script>
@@ -809,6 +815,7 @@ CANVAS {
     <p>Turn left to zoom in; turn right to zoom out.</p>
     <p>Switch to Lab to pause tank controls.</p>
   </details>
+  <button id="tankIntroductionButton" type="button" disabled>Introduction</button>
 </div>
 <div id="uiContainer">
 <div id="ui"></div>

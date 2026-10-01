@@ -227,6 +227,33 @@
     if (status) status.textContent = message;
   }
   var statsGoodSince = 0;
+  var tankIntroductionOpen = false;
+  function openTankIntroduction() {
+    if (!state.connected || state.signalChecking || state.mode !== "explore") return;
+    tankIntroductionOpen = true;
+    document.body.classList.add("tankIntroductionOpen");
+    document.getElementById("exploreModeButton").disabled = true;
+    document.getElementById("labModeButton").disabled = true;
+    document.getElementById("introductionBackButton").textContent = "Back to Tank";
+    showStartPanel("introduction"); showIntroductionSlide(0); setStartScreenVisible(true);
+    document.getElementById("introductionBackButton").focus();
+  }
+  function closeIntroduction() {
+    if (!tankIntroductionOpen) { showStartPanel("start"); return; }
+    tankIntroductionOpen = false;
+    document.body.classList.remove("tankIntroductionOpen");
+    // Resume from the visible view; never apply actions collected while reading.
+    state.targetFieldOfView = getAquariumFieldOfView();
+    state.targetRadius = getAquariumTargetRadius();
+    state.targetFishSpeed = getAquariumFishSpeed();
+    state.targetFishTailSpeed = getAquariumFishTailSpeed();
+    state.bubbles.visibleUntil = 0;
+    state.bubbles.fountains.forEach(function(fountain) { fountain.visibleUntil = 0; });
+    controlResumeAt = Date.now();
+    setStartScreenVisible(false); setMode("explore");
+    document.getElementById("introductionBackButton").textContent = "back";
+    document.getElementById("tankIntroductionButton").focus();
+  }
   function updateStats(now) {
     var values = {
       statEngagement: state.focus.lastComputedAt ? state.focus.index.toFixed(0) : "--",
@@ -299,7 +326,7 @@
   }
 
   function setMode(mode) {
-    if (state.signalChecking && state.connected) return;
+    if ((state.signalChecking || tankIntroductionOpen) && state.connected) return;
     if (mode !== "explore" && mode !== "lab") return;
     var nextMode = state.connected ? mode : "explore";
     var modeChanged = nextMode !== state.mode;
@@ -330,12 +357,14 @@
       lab.setAttribute("aria-pressed", String(state.mode === "lab"));
     }
     if (screen) screen.hidden = state.mode !== "lab";
+    var introShortcut = document.getElementById("tankIntroductionButton");
+    if (introShortcut) introShortcut.disabled = !state.connected || state.mode !== "explore";
     if (modeChanged) document.dispatchEvent(new CustomEvent("musemodechange", { detail: state.mode }));
   }
 
   var controlResumeAt = 0;
   function controlBlend(now) {
-    if (state.mode === "lab" || state.signalChecking) return 0;
+    if (state.mode === "lab" || state.signalChecking || tankIntroductionOpen) return 0;
     if (!controlResumeAt) return 1;
     // Ease live control back in over 1.5 seconds after leaving Lab.
     var progress = clamp((now - controlResumeAt) / 1500, 0, 1);
@@ -559,6 +588,9 @@
   }
 
   function handleDisconnect() {
+    tankIntroductionOpen = false;
+    document.body.classList.remove("tankIntroductionOpen");
+    document.getElementById("introductionBackButton").textContent = "back";
     resetEEGStream();
     state.connected = false;
     state.signalChecking = false;
@@ -1005,7 +1037,7 @@
     var now = Date.now();
     var elapsed = lastFishSpeedUpdateAt ? Math.max(0, Math.min((now - lastFishSpeedUpdateAt) / 1000, 0.1)) : 1 / 60;
     lastFishSpeedUpdateAt = now;
-    if (state.mode === "lab" || state.signalChecking) return;
+    if (state.mode === "lab" || state.signalChecking || tankIntroductionOpen) return;
     if (!window.g || !g.globals || !Number.isFinite(g.globals.speed)) return;
     if (state.baseFishSpeed === null) state.baseFishSpeed = g.globals.speed;
     if (state.targetFishSpeed === null) state.targetFishSpeed = g.globals.speed;
@@ -1094,7 +1126,7 @@
       // Lab scores detector events separately from aquarium effects.
       document.dispatchEvent(new CustomEvent("museblink", { detail: { time: performance.now() } }));
       // Keep detection active in Lab, without changing fountain state or emitters.
-      if (state.mode === "lab" || state.signalChecking) {
+      if (state.mode === "lab" || state.signalChecking || tankIntroductionOpen) {
         state.blink.aboveThreshold = aboveThreshold;
         return;
       }
@@ -1126,7 +1158,7 @@
   }
 
   function updateBubbles(now, dt) {
-    if (state.mode === "lab" || state.signalChecking) return;
+    if (state.mode === "lab" || state.signalChecking || tankIntroductionOpen) return;
     dt *= controlBlend(now);
     var opacities = [];
     var maxOpacity = 0;
@@ -1211,7 +1243,7 @@
       }
 
       // Keep the displayed stats frozen in Lab while sensor processing continues.
-      if (state.connected && state.mode === "explore") {
+      if (state.connected && state.mode === "explore" && !tankIntroductionOpen) {
         updateStats(now);
       }
     }
@@ -1259,9 +1291,10 @@
       });
     }
     var introductionBackButton = document.getElementById("introductionBackButton");
+    document.getElementById("tankIntroductionButton").addEventListener("click", openTankIntroduction);
     if (introductionBackButton) {
       introductionBackButton.addEventListener("click", function() {
-        showStartPanel("start");
+        closeIntroduction();
       });
     }
     var introductionPreviousButton = document.getElementById("introductionPreviousButton");
@@ -1275,7 +1308,7 @@
       introductionNextButton.addEventListener("click", function() {
         var slides = document.querySelectorAll("#introductionPanel .introductionSlide");
         if (introductionSlideIndex >= slides.length - 1) {
-          showStartPanel("start");
+          closeIntroduction();
         } else {
           showIntroductionSlide(introductionSlideIndex + 1);
         }
