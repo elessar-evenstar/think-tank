@@ -113,7 +113,7 @@ CANVAS {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 90px 20px 20px;
+  padding: 20px;
   box-sizing: border-box;
 }
 #labScreen[hidden] { display: none; }
@@ -154,14 +154,33 @@ CANVAS {
 #exerciseStatus.countdown { font-size: 32px; font-weight: bold; line-height: 1.3; }
 #signalCheck { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,0.25); }
 #signalCheck[hidden] { display: none; }
-#signalCheckPanel { width: min(620px, 100%); max-height: 85vh; overflow-y: auto; padding: 24px; box-sizing: border-box; background: rgba(5,12,22,0.94); color: white; border-radius: 8px; font: 15px/1.5 sans-serif; }
-#signalCheckPanel h2 { margin-top: 0; }
+#signalCheckPanel { width: min(620px, 100%); max-height: calc(100dvh - 40px); display: flex; flex-direction: column; overflow: hidden; padding: 18px; box-sizing: border-box; background: rgba(5,12,22,0.94); color: white; border-radius: 8px; font: 14px/1.4 sans-serif; }
+#signalCheckContent { overflow-y: auto; min-height: 0; }
+#signalCheckContent > p { margin: 8px 0; }
+#signalProgress { height: 40px; box-sizing: border-box; display: flex; align-items: center; }
+#signalWarning { min-height: 40px; font-size: 12px; }
+#signalWarning[hidden] { display: block; visibility: hidden; }
+#signalSkip[hidden] { display: block; visibility: hidden; }
+#signalCheckPanel h2 { flex-shrink: 0; }
+#signalTraceRows { display: grid; grid-template-columns: 138px minmax(0, 1fr); gap: 8px; }
+#signalCheckPanel h2 { margin: 0 0 6px; font-size: 22px; }
 #signalCheckGraph { display: block; width: 100%; height: 192px; background: rgba(0,0,0,0.25); }
-#signalChannels { list-style: none; padding: 0; }
-#signalChannels li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #53626b; }
+#signalChannels { list-style: none; padding: 0; margin: 0; font-size: 11px; }
+#signalChannels li { height: 43px; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; }
 #signalChannels [data-quality="good"] { color: #a5efb3; }
 #signalChannels [data-quality="warn"] { color: #ffe49b; }
-#signalCheckPanel .labActions { gap: 12px; flex-wrap: wrap; }
+#signalCheckPanel .labActions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); flex-shrink: 0; gap: 8px; margin-top: 6px; padding-top: 8px; border-top: 1px solid #53626b; }
+#signalCheckPanel .labActions button { padding: 8px 4px; min-height: 48px; font-size: 13px; }
+@media (max-height: 650px) {
+  #signalCheckPanel { padding: 12px; }
+  #signalCheckPanel #signalCheckGraph { height: 152px; }
+  #signalCheckPanel #signalChannels li { height: 33px; }
+}
+@media (max-width: 420px) {
+  #signalCheckPanel { padding: 14px; }
+  #signalTraceRows { grid-template-columns: 116px minmax(0, 1fr); gap: 4px; }
+  #signalCheckPanel .labActions button { padding: 6px 8px; font-size: 12px; }
+}
 #signalCheckPanel button:disabled { opacity: 0.45; cursor: default; }
 #exerciseCanvas { display: block; width: 100%; height: 180px; background: rgba(0,0,0,0.25); }
 #artifactLiveCanvas { display: block; width: 100%; height: 200px; background: rgba(0,0,0,0.25); }
@@ -402,30 +421,40 @@ CANVAS {
 }
 #museStats {
   display: none;
-  width: min(640px, calc(100% - 32px));
+  width: min(460px, calc(100% - 32px));
   font: 12px/1.5 sans-serif;
   font-variant-numeric: tabular-nums;
 }
 body.tankIntroductionOpen #museStats,
 body.tankIntroductionOpen #modeToggle,
 body.tankIntroductionOpen #eegLivePanel { display: none !important; }
-#museStatGrid { display: grid; gap: 2px; }
-.museStatRow { display: flex; justify-content: center; align-items: center; gap: 6px; min-height: 18px; }
-.museStatItem { white-space: nowrap; }
-.museStatItem + .museStatItem::before { content: "|"; margin-right: 6px; color: #b8dfff; }
-.museStatItem b { display: inline-block; min-width: 3ch; text-align: left; font-weight: normal; }
-#statTurn, #statPitch { min-width: 5ch; }
+body:has(#labScreen:not([hidden])) #museStats { display: none !important; }
+#museStatGrid { display: grid; grid-template-columns: 44px minmax(0, 1fr) 66px; gap: 16px; align-items: center; }
+#blinkIndicator { color: #c9e3ec; display: grid; justify-items: center; gap: 2px; }
+#blinkIndicator svg { width: 40px; height: 32px; }
+#blinkIndicator .eyeClosed { display: none; }
+#blinkIndicator.detected { color: #ff6464; }
+#blinkIndicator.detected .eyeOpen { display: none; }
+#blinkIndicator.detected .eyeClosed { display: block; }
+#engagementIndicator { min-width: 0; }
+#museStats #museStatus { height: 36px; }
+.engagementHeading { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+#statEngagement { flex: 0 0 3ch; text-align: right; }
+#engagementTrack { height: 8px; margin-top: 4px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+#engagementFill { display: block; height: 100%; width: 0; background: #60a5fa; transition: width 200ms linear, background-color 350ms ease, filter 350ms ease; }
+#engagementIndicator.held #engagementFill { filter: saturate(0.3) brightness(0.85); }
+#batteryIndicator { display: grid; justify-items: center; gap: 4px; }
+.batteryIcon { position: relative; width: 26px; height: 12px; border: 1px solid currentColor; padding: 2px; box-sizing: border-box; border-radius: 2px; }
+.batteryIcon::after { content: ""; position: absolute; right: -4px; top: 3px; width: 2px; height: 4px; background: currentColor; }
+#batteryFill { display: block; width: 0; height: 100%; background: #a5efb3; }
+#batteryIndicator.low #batteryFill { background: #ffbd70; }
+#batteryIndicator.unknown .batteryIcon { border-style: dashed; }
 @media (max-width: 1200px) { #museStats { top: 82px; } }
 @media (max-width: 600px) {
-  .museStatRow { display: grid; grid-template-columns: auto auto; gap: 2px 6px; }
-  .museStatItem:nth-child(3)::before { content: none; }
+  #museStatGrid { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }
   #museStats { padding: 8px; }
   #museStats #museStatus { height: 36px; }
   #eegLivePanel.expanded { top: 250px; }
-}
-@media (max-width: 400px) {
-  .museStatRow:first-child .museStatItem:first-child { grid-column: 1 / -1; }
-  .museStatRow:first-child .museStatItem:nth-child(2)::before { content: none; }
 }
 #eegLivePanel {
   display: none;
@@ -546,8 +575,8 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js?v=head-direction-1"></script>
-<script src="signal-check.js?v=4"></script>
+<script src="muse-aquarium.js?v=bright-engagement-1"></script>
+<script src="signal-check.js?v=6"></script>
 <script src="bci-lab.js?v=8"></script>
 <script src="artifact-explorer.js?v=9"></script>
 <script src="frequency-explorer.js?v=4"></script>
@@ -558,7 +587,9 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
 <div id="signalCheck" hidden>
   <section id="signalCheckPanel" role="dialog" aria-modal="true" aria-labelledby="signalCheckTitle">
     <h2 id="signalCheckTitle">Check Your Headband</h2>
-    <p>Sit comfortably, relax your face, and keep your head still briefly. Blink when you need to; brief blinks can delay the check while the signals settle. Continue becomes available after all four channels stay within the signal limits and the engagement algorithm accepts fresh data.</p>
+    <div id="signalCheckContent">
+    <p>Relax your face and keep still briefly. Blink whenever you need to.</p>
+    <div id="signalTraceRows">
     <ul id="signalChannels">
       <li><span>TP9 - behind left ear</span><strong id="signal0">Checking</strong></li>
       <li><span>AF7 - left forehead</span><strong id="signal1">Checking</strong></li>
@@ -566,11 +597,12 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
       <li><span>TP10 - behind right ear</span><strong id="signal3">Checking</strong></li>
     </ul>
     <canvas id="signalCheckGraph" role="img" aria-label="Live EEG traces from TP9, AF7, AF8 and TP10 over the last two seconds"></canvas>
-    <p>Live EEG includes brain activity and signals from eyes, muscles, and movement. Each row uses the same fixed +/-250 microvolt range; larger values are clipped at the edges.</p>
+    </div>
     <p id="signalProgress" role="status"></p>
     <details><summary>Placement help</summary><p>Position the headband across your forehead with the ear pieces resting behind your ears. Keep hair away from the sensors and make sure the forehead and behind-ear sensors touch your skin. Adjust gently for a snug, comfortable fit.</p></details>
-    <p>This is a signal-usability check, not a measurement of contact impedance or a guarantee of artifact-free EEG. Detection thresholds stay unchanged.</p>
-    <p id="signalWarning" hidden>Continuing without a stable signal may make blink detection and the engagement estimate less reliable.</p>
+    <details><summary>About this check</summary><p>Live EEG includes brain activity and signals from eyes, muscles, and movement. Each row uses the same fixed +/-250 microvolt range; larger values are clipped at the edges.</p><p>Continue becomes available after all four channels stay within the signal limits and the engagement algorithm accepts fresh data. This checks signal usability, not contact impedance, and does not guarantee artifact-free EEG. Detection thresholds stay unchanged.</p></details>
+    <p id="signalWarning" hidden>Continuing now may make blink detection and engagement estimates less reliable.</p>
+    </div>
     <div class="labActions">
       <button id="signalRetry" type="button">Check Again</button>
       <button id="signalSkip" type="button" hidden>Continue Anyway</button>
@@ -773,17 +805,20 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
 </div>
 <div id="museStats" class="fpsContainer">
   <div id="museStatGrid">
-    <div class="museStatRow">
-      <span class="museStatItem">EEG engagement estimate: <b id="statEngagement">--</b></span>
-      <span class="museStatItem">Blinks: <b id="statBlinks">0</b></span>
-      <span class="museStatItem">Turn: <b id="statTurn">still</b></span>
-      <span class="museStatItem">Pitch: <b id="statPitch">still</b></span>
+    <div id="blinkIndicator" role="img" aria-label="Blink detector idle" title="Flashes when a blink is detected">
+      <svg viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <g class="eyeOpen"><path d="M2 10Q12 -3 22 10Q12 23 2 10Z"/><circle cx="12" cy="10" r="3"/></g>
+        <path class="eyeClosed" d="M2 9Q12 19 22 9M6 12L4 16M12 14V18M18 12L20 16"/>
+      </svg>
+      <span>Blink</span>
     </div>
-    <div class="museStatRow">
-      <span class="museStatItem">FOV: <b id="statFov">--</b></span>
-      <span class="museStatItem">Radius: <b id="statRadius">--</b></span>
-      <span class="museStatItem">Speed: <b id="statSpeed">--</b></span>
-      <span class="museStatItem">Battery: <b id="statBattery">--</b></span>
+    <div id="engagementIndicator">
+      <div class="engagementHeading"><span>EEG engagement estimate</span><b id="statEngagement">--</b></div>
+      <div id="engagementTrack" role="meter" aria-label="EEG engagement estimate" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Collecting EEG"><span id="engagementFill"></span></div>
+    </div>
+    <div id="batteryIndicator" class="unknown" title="Muse battery level">
+      <span class="batteryIcon" aria-hidden="true"><span id="batteryFill"></span></span>
+      <span id="statBattery" aria-label="Battery level unknown">--</span>
     </div>
   </div>
   <div id="museStatus">Muse disconnected</div>

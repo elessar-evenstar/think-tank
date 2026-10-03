@@ -46,10 +46,10 @@
     else if (stableSince === null) stableSince = now;
     var ready = stableSince !== null && now - stableSince >= 3000;
     el("signalContinue").disabled = !ready;
-    el("signalProgress").textContent = moving ? "Keep your head still briefly while we check the signal." :
-      ready ? "All four signals look usable. Continue when you are ready." :
-      allGood && !accepted ? "Waiting for the engagement algorithm to accept a fresh EEG window. Brief blinks or movement may delay this." :
-      allGood ? "Signals look usable. Checking that they stay steady..." : "Waiting for all four channels to settle. A blink may briefly delay the check; adjust the fit if a warning persists.";
+    el("signalProgress").textContent = moving ? "Please keep still briefly." :
+      ready ? "Signals usable. Ready to continue." :
+      allGood && !accepted ? "Waiting for usable EEG..." :
+      allGood ? "Checking signal stability..." : "Waiting for all four signals...";
     if (now - started >= 30000) { el("signalSkip").hidden = false; el("signalWarning").hidden = false; }
     draw(now);
     frame = requestAnimationFrame(tick);
