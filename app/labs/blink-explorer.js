@@ -10,13 +10,7 @@
   var graphAmplitude = 600;
 
   function element(id) { return document.getElementById(id); }
-  function show(view) {
-    ["labMenu", "labIntro", "labRunning", "labResults", "artifactView", "frequencyView", "frequencyExercise"].forEach(function(id) {
-      element(id).hidden = id !== view;
-    });
-    element("labPanel").classList.toggle("artifactOpen", view === "artifactView");
-  }
-  window.bciLab = { show: show };
+  function show(view) { window.bciLab.show(view); }
   function counts() {
     var detected = session.trials.filter(function(trial) { return trial.detected; }).length;
     var missed = session.trials.filter(function(trial) { return trial.closed && !trial.detected; }).length;

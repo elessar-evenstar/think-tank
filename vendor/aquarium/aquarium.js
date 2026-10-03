@@ -74,12 +74,10 @@ var g_multiviewFbHeight = 0;
 var g_tailOffsetMult   = 1;
 var g_tankRadius       = 74;
 var g_tankHeight       = 36;
-var g_numBubbleSets    = 5;
+var g_numBubbleSets    = 10;
 var g_laserEta = 1.2;
 var g_laserLenFudge = 1;
 var g_bubbleSets = [];
-var g_bubbleEmitters = [];
-var g_bubbleOpacities = [];
 var g_fishData = [];
 var g_numLightRays = 5;
 var g_lightRayY = 50;
@@ -96,14 +94,6 @@ var g_session = null;
 var g_xrImmersiveRefSpace = null;
 var g_startXRRendering = () => {};
 var g_onAnimationFrame = () => {};
-
-var g_bubbleFountainPositions = [
-  [-36, 0, -16],
-  [-20, 0, 14],
-  [0, 0, -20],
-  [20, 0, 14],
-  [36, 0, -16]
-];
 
 var g_ui = [
   { obj: 'globals',    name: 'speed',           value: 1,     max:  4 },
@@ -821,73 +811,41 @@ function setupLightRay() {
   return model;
 }
 
-function updateBubbleColorRamp(index) {
-    var emitter = g_bubbleEmitters[index];
-    if (!emitter) {
+function setupBubbles(particleSystem) {
+    // ThinkTank integration: delegate particle setup only for the custom app.
+    if (window.thinkTankAquarium) {
+      window.thinkTankAquarium.setupBubbles(particleSystem);
       return;
     }
-    var opacity = g_bubbleOpacities[index] || 0;
-    emitter.setColorRamp(
-        [1, 1, 1, opacity,
-         1, 1, 1, opacity,
-         1, 1, 1, opacity,
-         1, 1, 1, opacity,
-         1, 1, 1, opacity,
-         1, 1, 1, 0]);
-}
-
-// Muse blink logic supplies one independent opacity per bubble fountain.
-function setBubbleOpacities(opacities) {
-    for (var ii = 0; ii < g_numBubbleSets; ++ii) {
-      var nextOpacity = Math.max(0, Math.min(1, opacities[ii] || 0));
-      if (Math.abs(nextOpacity - (g_bubbleOpacities[ii] || 0)) < 0.01) {
-        continue;
-      }
-      g_bubbleOpacities[ii] = nextOpacity;
-      updateBubbleColorRamp(ii);
-    }
-}
-
-// A blink starts the 5 fixed bubble fountains. The Muse controller decides
-// when to fade them in or out, so repeated blinks do not reset their motion.
-function triggerAllBubbleFountains() {
-    for (var ii = 0; ii < g_bubbleSets.length; ++ii) {
-      var position = g_bubbleFountainPositions[ii % g_bubbleFountainPositions.length];
-      var world = fast.matrix4.translation(
-          new Float32Array(16),
-          position);
-      g_bubbleSets[ii].trigger(world);
-    }
-}
-
-function setupBubbles(particleSystem) {
     var texture = tdl.textures.loadTexture(g_aquariumConfig.aquariumRoot + 'static_assets/bubble.png');
+    var emitter = particleSystem.createParticleEmitter(texture.texture);
+    emitter.setTranslation(0, 0, 0);
+    emitter.setState(tdl.particles.ParticleStateIds.ADD);
+    emitter.setColorRamp(
+        [1, 1, 1, 1,
+         1, 1, 1, 1,
+         1, 1, 1, 1,
+         1, 1, 1, 1,
+         1, 1, 1, 1,
+         1, 1, 1, 0]);
+    emitter.setParameters({
+        numParticles: 100,
+        numFrames: 1,
+        frameDuration: 1000.0,
+        frameStartRange: 0,
+        lifeTime: 40,
+        startTime: 0,
+        startSize: 0.01,
+        startSizeRange: 0.01,
+        endSize: 0.4,
+        endSizeRange: 0.2,
+        position: [0,-2,0],
+        positionRange: [0.1,2,0.1],
+        acceleration: [0,0.05,0],
+        accelerationRange: [0,0.02,0],
+        velocityRange: [0.05,0,0.05],
+        colorMult: [0.7,0.8,1,1]});
     for (var ii = 0; ii < g_numBubbleSets; ++ii) {
-        var emitter = particleSystem.createParticleEmitter(texture.texture);
-        g_bubbleEmitters[ii] = emitter;
-        g_bubbleOpacities[ii] = 0;
-        emitter.setTranslation(0, 0, 0);
-        emitter.setState(tdl.particles.ParticleStateIds.ADD);
-        updateBubbleColorRamp(ii);
-        emitter.setParameters({
-            numParticles: 100,
-            numFrames: 1,
-            frameDuration: 1000.0,
-            frameStartRange: 0,
-            lifeTime: 40,
-            timeRange: 40,
-            startTime: null,
-            startSize: 0.2,
-            startSizeRange: 0.12,
-            endSize: 2.0,
-            endSizeRange: 0.65,
-            position: [0,-2,0],
-            positionRange: [0.45,2.5,0.45],
-            velocity: [0,0.08,0],
-            velocityRange: [0.16,0.08,0.16],
-            acceleration: [0,0.08,0],
-            accelerationRange: [0,0.035,0],
-            colorMult: [1.2,1.25,1.3,1]});
         g_bubbleSets[ii] = emitter.createOneShot();
     }
 }
@@ -1041,10 +999,13 @@ function initialize() {
   var particleSystem = new tdl.particles.ParticleSystem(
       gl, null, math.pseudoRandom, g_vrSupported);
   setupBubbles(particleSystem);
+  var bubbleTimer = 0;
+  var bubbleIndex = 0;
   var lightRay = setupLightRay();
 
   var then = 0.0;
   var clock = 0.0;
+  // ThinkTank integration: independent tail phase for dynamic speed changes.
   var tailClock = 0.0;
   var fpsElem = document.getElementById("fps");
 
@@ -1440,7 +1401,7 @@ function initialize() {
         var fishRadiusRange = fishInfo.radiusRange;
         var fishSpeed = fishInfo.speed;
         var fishSpeedRange = fishInfo.speedRange;
-        var fishTailSpeed = fishInfo.tailSpeed;
+        var fishTailSpeed = fishInfo.tailSpeed * (window.thinkTankAquarium ? 1 : f.fishTailSpeed);
         var fishOffset = f.fishOffset;
         var fishClockSpeed = f.fishSpeed;
         var fishHeight = f.fishHeight + fishInfo.heightOffset;
@@ -1471,7 +1432,7 @@ function initialize() {
           fishPer.scale = scale;
 
           fishPer.time =
-              ((tailClock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
+              (((window.thinkTankAquarium ? tailClock : clock) + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
               (Math.PI * 2);
           fish.draw(fishPer);
 
@@ -1801,10 +1762,8 @@ function initialize() {
       clock += elapsedTime * g.globals.speed;
       eyeClock += elapsedTime * g.globals.eyeSpeed;
     }
-    // Keep tail animation phase continuous when fishTailSpeed changes.
-    // The main fish path already uses g.globals.speed; tailClock only needs
-    // the tail-specific speed so focus changes do not double-boost the tail.
-    tailClock += elapsedTime * g.fish.fishTailSpeed;
+    // ThinkTank integration: preserve phase in normal and XR animation paths.
+    if (window.thinkTankAquarium) tailClock += elapsedTime * g.fish.fishTailSpeed;
 
     frameCount++;
     g_fpsTimer.update(elapsedTime);
@@ -1883,10 +1842,8 @@ function initialize() {
       clock += elapsedTime * g.globals.speed;
       eyeClock += elapsedTime * g.globals.eyeSpeed;
     }
-    // Keep tail animation phase continuous when fishTailSpeed changes.
-    // The main fish path already uses g.globals.speed; tailClock only needs
-    // the tail-specific speed so focus changes do not double-boost the tail.
-    tailClock += elapsedTime * g.fish.fishTailSpeed;
+    // ThinkTank integration: preserve phase in normal and XR animation paths.
+    if (window.thinkTankAquarium) tailClock += elapsedTime * g.fish.fishTailSpeed;
 
     if (g.options.lightRays.enabled) {
       for (var ii = 0; ii < g_lightRayInfo.length; ++ii) {
@@ -1895,6 +1852,24 @@ function initialize() {
         if (info.timer < 0) {
           initLightRay(info);
         }
+      }
+    }
+
+    // ThinkTank integration: detector events replace automatic random triggers.
+    if (!window.thinkTankAquarium && g.options.bubbles.enabled) {
+      bubbleTimer -= elapsedTime * g.globals.speed;
+      if (bubbleTimer < 0) {
+        bubbleTimer = 2 + Math.random() * 8;
+        var radius = Math.random() * 50;
+        var angle = Math.random() * Math.PI * 2;
+        fast.matrix4.translation(
+            world,
+            [Math.sin(angle) * radius,
+             0,
+             Math.cos(angle) * radius]);
+        g_bubbleSets[bubbleIndex].trigger(world);
+        ++bubbleIndex;
+        bubbleIndex = bubbleIndex % g_numBubbleSets;
       }
     }
 
@@ -2107,23 +2082,37 @@ $(function(){
     g.net.fovFudge = 1;
   }
 
-  // The player-facing aquarium controls stay hidden. Aquarium settings are
-  // still initialized here because the renderer and Muse mappings use them.
-  $("#uiContainer").hide();
-  $("#topUI").hide();
+  $('#setSettingAdvanced').click(function() {
+      $("#uiContainer").toggle('slow'); return false; });
+  $("#uiContainer").toggle();
+  $('#options').click(function() {
+      $("#optionsContainer").toggle(); return false; });
+  $("#optionsContainer").toggle();
 
   if (g.net.ui === false) {
     $('#topUI').hide();
   } else {
     $(document).keypress(function(event) {
-      if (event.which == 's'.charCodeAt(0) ||
-          event.which == 'S'.charCodeAt(0)) {
+      // ThinkTank integration: retain screenshot shortcut, suppress aquarium controls.
+      if (window.thinkTankAquarium && event.which !== 115 && event.which !== 83) return;
+      if (event.which == 'l'.charCodeAt(0) ||
+          event.which == 'L'.charCodeAt(0)) {
+        setSettings({drawLasers: !g.drawLasers});
+      } else if (event.which == ' '.charCodeAt(0)) {
+        advanceViewSettings();
+      } else if (event.which == 's'.charCodeAt(0) ||
+                 event.which == 'S'.charCodeAt(0)) {
         tdl.screenshot.takeScreenshot(
           document.getElementById("canvas"));
+      } else if (event.which == 'h'.charCodeAt(0) ||
+                 event.which == 'H'.charCodeAt(0)) {
+        $('#topUI').toggle();
       }
     });
   }
-  main();
+  // ThinkTank integration: load inherited shaders before creating the scene.
+  if (window.thinkTankAquarium) window.thinkTankAquarium.start(main);
+  else main();
 });
 
 (function() {
@@ -2316,5 +2305,9 @@ $(function(){
     resize();
   }
 
-  window.addEventListener('DOMContentLoaded', initPostDOMLoaded, false);
+  // ThinkTank integration: resize/VR setup must also wait for renderer startup.
+  window.addEventListener('DOMContentLoaded', function() {
+    if (window.thinkTankAquarium) window.thinkTankAquarium.afterStart(initPostDOMLoaded);
+    else initPostDOMLoaded();
+  }, false);
 })();

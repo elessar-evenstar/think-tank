@@ -1,0 +1,380 @@
+<!--
+ * Copyright 2009, Google Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *
+ *     * Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above
+ * copyright notice, this list of conditions and the following disclaimer
+ * in the documentation and/or other materials provided with the
+ * distribution.
+ *     * Neither the name of Google Inc. nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>ThinkTank — Muse BCI Aquarium</title>
+<link href="app/ui/thinktank.css" rel="stylesheet">
+<link href="vendor/jquery-ui-1.8.2.custom/css/ui-lightness/jquery-ui-1.8.2.custom.css" rel="stylesheet" />
+<script src="vendor/jquery-ui-1.8.2.custom/js/jquery-1.4.2.min.js"></script>
+<script src="vendor/jquery-ui-1.8.2.custom/js/jquery-ui-1.8.2.custom.min.js"></script>
+<script src="vendor/tdl/base.js"></script>
+<script src="app/aquarium/config.js"></script>
+<script src="vendor/aquarium/aquarium-common.js"></script>
+<script src="app/aquarium/load-shaders.js"></script>
+<script src="app/aquarium/bubble-fountains.js"></script>
+<script src="app/aquarium/extensions.js"></script>
+<script src="vendor/aquarium/aquarium.js"></script>
+<script src="app/muse/protocol.js"></script>
+<script src="app/config.js"></script>
+<script src="app/state.js"></script>
+<script src="app/muse/eeg-buffer.js"></script>
+<script src="app/muse/connection.js"></script>
+<script src="app/processing/signal-math.js"></script>
+<script src="app/processing/blink-detector.js"></script>
+<script src="app/processing/engagement.js"></script>
+<script src="app/processing/motion.js"></script>
+<script src="app/controls/controller.js"></script>
+<script src="app/controls/camera.js"></script>
+<script src="app/controls/animation.js"></script>
+<script src="app/controls/bubbles.js"></script>
+<script src="app/ui/navigation.js"></script>
+<script src="app/ui/status.js"></script>
+<script src="app/ui/eeg-display.js"></script>
+<script src="app/aquarium/adapter.js"></script>
+<script src="app/ui/signal-check.js"></script>
+<script src="app/labs/lab-navigation.js"></script>
+<script src="app/labs/blink-explorer.js"></script>
+<script src="app/labs/artifact-explorer.js"></script>
+<script src="app/labs/frequency-explorer.js"></script>
+<script src="app/labs/frequency-exercise.js"></script>
+<script src="app/main.js"></script>
+</head>
+<body>
+<div id="info"><a href="http://threedlibrary.googlecode.com" target="_blank">tdl.js</a> - aquarium</div>
+<div id="signalCheck" hidden>
+  <section id="signalCheckPanel" role="dialog" aria-modal="true" aria-labelledby="signalCheckTitle">
+    <h2 id="signalCheckTitle">Check Your Headband</h2>
+    <div id="signalCheckContent">
+    <p>Relax your face and keep still briefly. Blink whenever you need to.</p>
+    <div id="signalTraceRows">
+    <ul id="signalChannels">
+      <li><span>TP9 - behind left ear</span><strong id="signal0">Checking</strong></li>
+      <li><span>AF7 - left forehead</span><strong id="signal1">Checking</strong></li>
+      <li><span>AF8 - right forehead</span><strong id="signal2">Checking</strong></li>
+      <li><span>TP10 - behind right ear</span><strong id="signal3">Checking</strong></li>
+    </ul>
+    <canvas id="signalCheckGraph" role="img" aria-label="Live EEG traces from TP9, AF7, AF8 and TP10 over the last two seconds"></canvas>
+    </div>
+    <p id="signalProgress" role="status"></p>
+    <details><summary>Placement help</summary><p>Position the headband across your forehead with the ear pieces resting behind your ears. Keep hair away from the sensors and make sure the forehead and behind-ear sensors touch your skin. Adjust gently for a snug, comfortable fit.</p></details>
+    <details><summary>About this check</summary><p>Live EEG includes brain activity and signals from eyes, muscles, and movement. Each row uses the same fixed +/-250 microvolt range; larger values are clipped at the edges.</p><p>Continue becomes available after all four channels stay within the signal limits and the engagement algorithm accepts fresh data. This checks signal usability, not contact impedance, and does not guarantee artifact-free EEG. Detection thresholds stay unchanged.</p></details>
+    <p id="signalWarning" hidden>Continuing now may make blink detection and engagement estimates less reliable.</p>
+    </div>
+    <div class="labActions">
+      <button id="signalRetry" type="button">Check Again</button>
+      <button id="signalSkip" type="button" hidden>Continue Anyway</button>
+      <button id="signalContinue" type="button" disabled>Continue to Tank</button>
+    </div>
+  </section>
+</div>
+<div id="modeToggle" role="group" aria-label="Aquarium mode">
+  <button id="exploreModeButton" type="button" aria-pressed="true" disabled>Tank</button>
+  <button id="labModeButton" type="button" aria-pressed="false" aria-controls="labScreen" disabled>Lab</button>
+</div>
+<div id="labScreen" hidden>
+  <section id="labPanel" aria-label="BCI Lab">
+    <div id="labMenu">
+      <h2>BCI Lab</h2>
+      <div class="labActions labMenuOptions">
+        <button id="labBlinkOption" type="button">Blink Explorer</button>
+        <button id="labArtifactOption" type="button">Artifact Explorer</button>
+        <button id="labFrequencyOption" type="button">Frequency Explorer</button>
+      </div>
+    </div>
+    <div id="labIntro" hidden>
+      <h2>Lab 1: Blink Explorer</h2>
+      <p>This short session tests how often ThinkTank detects a blink in response to each of ten prompts. Watch your live TP9 and TP10 signals for brief downward spikes, which may be caused by blinks. At the end, you will see how many prompted trials had a detection, how many did not, and how many extra or unprompted detections occurred.</p>
+      <p>Sit comfortably and blink once when the word Blink grows and turns white, about every 2.6 seconds. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink; red is detection feedback.</p>
+      <p>Eye and head movements can also trigger detections. Keep your gaze near the center of the screen and limit head movement to minimize false detections.</p>
+      <p>You can return to Tank at any time to end the session.</p>
+      <div class="labActions">
+        <button id="labBack" type="button">Back</button>
+        <button id="labNext" type="button">Next</button>
+      </div>
+    </div>
+    <div id="labRunning" hidden>
+      <div id="blinkCue"><span>Blink</span></div>
+      <div id="labProgress" role="status">Get ready</div>
+      <div class="labCounts">
+        <span>Detected: <b id="labDetected">0</b></span>
+        <span>Not detected: <b id="labMissed">0</b></span>
+        <span>Unexpected: <b id="labUnexpected">0</b></span>
+      </div>
+      <canvas id="labEEG" width="640" height="124" role="img" aria-label="Live TP9 and TP10 EEG waveforms"></canvas>
+      <div class="labActions">
+        <button id="labRunningBack" type="button">Back</button>
+        <button id="labRunningNext" type="button">Next</button>
+      </div>
+    </div>
+    <div id="labResults" hidden>
+      <h2>Blink Explorer Results</h2>
+      <p id="labResultStatus"></p>
+      <p id="labResultCounts"></p>
+      <p>A prompted trial counts as detected when a detection occurs within 1.6 seconds of the cue. Extra detections and detections outside that window count as unexpected.</p>
+      <p>These results compare detections with prompts, not independently verified blinks. Natural blinks can also appear as unexpected detections.</p>
+      <div class="labActions">
+        <button id="labAgain" type="button">Run Again</button>
+        <button id="labReturnMenu" type="button">Return To Menu</button>
+      </div>
+    </div>
+    <div id="frequencyExercise" hidden>
+      <h2 id="exerciseTitle"></h2>
+      <p id="exerciseDescription"></p>
+      <p id="exerciseScore" aria-label="EEG engagement estimate"></p>
+      <p id="exerciseStatus" role="status"></p>
+      <canvas id="exerciseCanvas" hidden role="img" aria-label="EEG engagement estimate over fifteen seconds, on a fixed zero to one hundred scale"></canvas>
+      <p id="exerciseSummary"></p>
+      <div class="labActions">
+        <button id="exerciseBack" type="button">Back</button>
+        <button id="exerciseAgain" type="button" hidden>Run Again</button>
+        <button id="exerciseNext" type="button">Start</button>
+      </div>
+    </div>
+    <div id="frequencyView" hidden>
+      <h2 id="frequencyTitle"></h2>
+      <p id="frequencyDescription"></p>
+      <p id="frequencyStatus" role="status"></p>
+      <canvas id="frequencyCanvas" role="img" aria-label="Frequency illustration or live AF7 and AF8 averaged power spectrum" hidden></canvas>
+      <div id="frequencyBars" hidden>
+        <label>Theta: 4-7 Hz <meter id="frequencyTheta" min="0" max="1" value="0"></meter><output id="frequencyThetaValue">--</output></label>
+        <label>Alpha: 8-12 Hz <meter id="frequencyAlpha" min="0" max="1" value="0"></meter><output id="frequencyAlphaValue">--</output></label>
+        <label>Beta: 13-30 Hz <meter id="frequencyBeta" min="0" max="1" value="0"></meter><output id="frequencyBetaValue">--</output></label>
+      </div>
+      <p id="frequencyNote"></p>
+      <details id="frequencyDetails" hidden><summary>Calculation details</summary>
+        <p>Each accepted window contains 512 samples (about two seconds) from AF7 and AF8. Each channel is mean-centered and Hann-windowed before calculating frequency power. Matching powers are then averaged across channels. Values use the existing algorithm's squared-voltage normalization, not a calibrated power spectral density. The display smooths updates; the vertical range is fixed after the first accepted window. Values beyond that range are clipped and reported.</p>
+      </details>
+      <div class="labActions"><button id="frequencyBack" type="button">Back</button><button id="frequencyNext" type="button">Next</button></div>
+    </div>
+    <div id="artifactView" hidden>
+      <h2 id="artifactTitle">Lab 2: Artifact Explorer</h2>
+      <p id="artifactDescription"></p>
+      <p id="artifactNote"></p>
+      <p id="artifactStatus" role="status" aria-live="polite"></p>
+      <figure id="artifactLive" hidden>
+        <figcaption>Live recording</figcaption>
+        <canvas id="artifactLiveCanvas" role="img" aria-label="Live EEG from TP9, AF7, AF8, and TP10, with headband angular speed"></canvas>
+      </figure>
+      <div id="artifactGraphs" class="artifactGraphs" hidden>
+        <figure><figcaption>Still baseline</figcaption><canvas id="artifactBaseline" role="img" aria-label="Saved baseline: four EEG channels and angular speed"></canvas></figure>
+        <figure id="artifactMovementFigure"><figcaption id="artifactMovementLabel">Movement</figcaption><canvas id="artifactMovement" role="img" aria-label="Saved movement: four EEG channels and angular speed"></canvas></figure>
+      </div>
+      <div id="artifactGuide" hidden>
+        <p>Each colored row shows one EEG channel, or recording location on the headband. Read from left to right to follow four seconds of recording.</p>
+        <p>Taller waves mean larger changes in recorded voltage. Eyes, muscles, and headband movement can also affect EEG. Both graphs use the same scale so you can compare them fairly.</p>
+        <p>Red dashed lines mark possible blinks flagged by the software, not confirmed blinks. The Motion row shows how fast the headband is turning, measured by its gyroscope.</p>
+      </div>
+      <details id="artifactTechnical" hidden>
+        <summary>Technical details</summary>
+        <p>EEG is shown within +/-600 microvolts of each channel's baseline mean. Motion shows angular speed from 0 to 150 degrees per second. Values outside these ranges are clipped at the graph edges; the graphs do not automatically zoom. Timing is approximate and based on packet arrival. Each movement graph covers the full prompted recording, not automatically detected movement boundaries.</p>
+      </details>
+      <div class="labActions">
+        <button id="artifactBack" type="button">Back</button>
+        <button id="artifactRetry" type="button" hidden>Record Again</button>
+        <button id="artifactNext" type="button">Next</button>
+      </div>
+    </div>
+  </section>
+</div>
+<p id="startupStatus" role="status"></p>
+<div id="startScreen">
+  <div id="startPanel" class="startPanel">
+    <h1>ThinkTank</h1>
+    <div class="startButtons">
+      <button id="connectMuseButton" type="button" disabled>Connect Muse</button>
+      <button id="introductionButton" type="button">Introduction</button>
+      <button id="controlsButton" type="button">Controls</button>
+    </div>
+  </div>
+  <div id="controlsPanel" class="startPanel">
+    <button id="backButton" type="button">back</button>
+    <h1>ThinkTank</h1>
+    <h2>Controls</h2>
+    <div class="controlInstructions">
+        <p>Blinking activates all five bubble fountains.</p>
+        <p>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</p>
+        <p>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</p>
+        <p>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</p>
+    </div>
+  </div>
+  <div id="introductionPanel" class="startPanel">
+    <button id="introductionBackButton" type="button">back</button>
+    <h1>ThinkTank</h1>
+    <div class="introductionSlide active" data-slide="0">
+      <h2>What is ThinkTank?</h2>
+      <div class="introductionText">
+        <p>ThinkTank is an interactive aquarium controlled by a Muse 2 headband. It uses EEG frequency features for an EEG engagement estimate, blink artifacts in the electrode recordings to detect blinks, and separate motion sensors to track head movement.</p>
+        <h3>Controls</h3>
+        <ul>
+          <li>Blinking activates all five bubble fountains.</li>
+          <li>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</li>
+          <li>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</li>
+          <li>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="modes">
+      <h2>Tank and Lab</h2>
+      <div class="introductionText">
+        <p><strong>Tank</strong> connects your Muse signals to the aquarium: blinks activate bubbles, the EEG engagement estimate changes fish speed, and head movements adjust the view.</p>
+        <p><strong>Lab</strong> keeps receiving and processing signals while holding the aquarium controls and stats at their current settings. The aquarium keeps animating. Switch back to Tank at any time to gradually resume live control without reconnecting.</p>
+        <p><strong>Blink Explorer</strong> compares ten prompted blinks with detector responses and shows the TP9 and TP10 signals. <strong>Artifact Explorer</strong> compares saved still and head-movement recordings so you can explore movement artifacts at your own pace.</p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="science">
+      <h2>The Science Behind It</h2>
+      <div class="introductionText">
+        <p>Neurons communicate through electrical and chemical signals. Incoming signals open ion channels, changing the voltage across a neuron's membrane. Excitatory inputs can make the inside less negative; an action potential occurs only if the neuron reaches its firing threshold.</p>
+        <p>Scalp EEG mainly reflects the combined currents associated with incoming signals, called postsynaptic potentials, in many similarly oriented cortical neurons active together. It does not directly count individual action potentials. These currents produce tiny voltage differences that reach the scalp.</p>
+        <p>Electrodes are conductive sensors. Muse measures voltage at AF7 and AF8 on the forehead and TP9 and TP10 behind the ears relative to a reference electrode. It amplifies these small signals and converts them into digital samples. The recordings also contain eye, muscle, movement, and contact artifacts.</p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="1">
+      <h2>How Blink Detection Works</h2>
+      <div class="introductionText">
+        <p>ThinkTank looks for short downward deflections in TP9 and TP10 to detect blinks. These are eye-related artifacts mixed into the EEG recording, rather than a neural measure of engagement. Other artifacts can sometimes trigger the detector too.</p>
+        <p>To look for the downward spike, the algorithm compares the newest 14 measurements with the 96 measurements immediately before them. It detects a blink when both channels fall at least 35 signal units below their recent baseline, their average drop is at least 70 units, and the drop is at least 2.8 times larger than the normal background noise. A very large spike reaching -400 units in either channel also counts.</p>
+        <p>After a blink is detected, the five bubble fountains in the aquarium fade in together. A short cooldown prevents one blink from being counted several times.</p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="2">
+      <h2>EEG Engagement Estimate</h2>
+      <div class="introductionText">
+        <p>ThinkTank calculates its EEG engagement estimate from AF7 and AF8, examining about two seconds of data from each channel separately. It calculates each channel's theta, alpha, and beta power, then averages the matching band powers. This preserves activity even when one channel's wave peaks as the other dips.</p>
+        <p>EEG contains fluctuations at different frequencies, measured in hertz (Hz), or cycles per second. The algorithm measures power, or signal strength, in theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). These bands can relate to several brain processes; none uniquely measures attention or relaxation.</p>
+        <p>It calculates <strong>beta power / (alpha power + theta power)</strong>, then maps ratios from 0.2 to 2.6 onto a 0-100 scale. Larger relative beta power raises the score. Large signal amplitudes, detected blinks, or head movement pause the estimate at its last valid value until a clean two-second window is available. The stats show the reason for the pause; smoothing makes valid changes gradual.</p>
+        <p>A score of 70 does not mean 70% focused. This experimental EEG engagement estimate controls fish speed; it is not a validated measure of attention. Eye and muscle activity or poor electrode contact can still affect it despite the adjustments.</p>
+      </div>
+    </div>
+    <div class="introductionSlide" data-slide="3">
+      <h2>How Head Movement Works</h2>
+      <div class="introductionText">
+        <p>Head movement comes from Muse's motion sensors, separately from EEG. The gyroscope measures rotation speed. A detected left turn widens the camera's field of view to zoom out; a detected right turn narrows it to zoom in.</p>
+        <p>The accelerometer estimates head tilt from gravity. ThinkTank uses changes in this estimate to adjust target radius: how far the point the camera looks at lies from the aquarium's center. Detected upward movement increases this radius; downward movement decreases it.</p>
+        <p>With the current camera position, increasing target radius makes the view less steeply downward; decreasing it makes the view more steeply downward. The camera stays in place and does not directly copy your head angle. Movement above a threshold gradually changes the view, which settles when you hold still. Both responses are smoothed.</p>
+      </div>
+    </div>
+    <div class="introductionNavigation">
+      <button id="introductionPreviousButton" type="button" disabled>Previous</button>
+      <span id="introductionProgress" class="introductionProgress">1 / 6</span>
+      <button id="introductionNextButton" type="button">Next</button>
+    </div>
+  </div>
+</div>
+<div id="museStats" class="fpsContainer">
+  <div id="museStatGrid">
+    <div id="blinkIndicator" role="img" aria-label="Blink detector idle" title="Flashes when a blink is detected">
+      <svg viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <g class="eyeOpen"><path d="M2 10Q12 -3 22 10Q12 23 2 10Z"/><circle cx="12" cy="10" r="3"/></g>
+        <path class="eyeClosed" d="M2 9Q12 19 22 9M6 12L4 16M12 14V18M18 12L20 16"/>
+      </svg>
+      <span>Blink</span>
+    </div>
+    <div id="engagementIndicator">
+      <div class="engagementHeading"><span>EEG engagement estimate</span><b id="statEngagement">--</b></div>
+      <div id="engagementTrack" role="meter" aria-label="EEG engagement estimate" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Collecting EEG"><span id="engagementFill"></span></div>
+    </div>
+    <div id="batteryIndicator" class="unknown" title="Muse battery level">
+      <span class="batteryIcon" aria-hidden="true"><span id="batteryFill"></span></span>
+      <span id="statBattery" aria-label="Battery level unknown">--</span>
+    </div>
+  </div>
+  <div id="museStatus">Muse disconnected</div>
+  <div class="fps">fps: <span id="fps"></span></div>
+  <div class="fps">canvas width: <span id="canvasWidth"></span></div>
+  <div class="fps">canvas height: <span id="canvasHeight"></span></div>
+  <div id="topUI">
+  <div>Number of Fish</div>
+  <div class="clickable" id="setSettingChangeView">Change View</div>
+  <div class="clickable" id="setSettingAdvanced">Advanced</div>
+  <div class="clickable" id="options">Options...
+  <div id="optionsContainer">
+  </div>
+  </div>
+  </div>
+</div>
+<div id="eegLivePanel" aria-label="Live EEG waveform display">
+  <button id="eegToggleButton" type="button" aria-expanded="false" aria-controls="eegGraph">
+    <span class="eegLiveTitle">Live EEG</span>
+    <span id="eegToggleIcon" aria-hidden="true">&#9660;</span>
+  </button>
+  <canvas id="eegGraph" width="220" height="120" role="img"
+    aria-label="Live waveforms for TP9, AF7, AF8, and TP10"></canvas>
+  <details id="quickControls">
+    <summary>Controls</summary>
+    <p>Blink to activate bubbles.</p>
+    <p>A higher EEG engagement estimate speeds up the fish.</p>
+    <p>Move your head up or down to adjust the camera view.</p>
+    <p>Turn left to zoom out; turn right to zoom in.</p>
+    <p>Switch to Lab to pause tank controls.</p>
+  </details>
+  <button id="tankIntroductionButton" type="button" disabled>Introduction</button>
+</div>
+<div id="uiContainer">
+<div id="ui"></div>
+</div>
+<div id="viewContainer">
+<canvas id="canvas" width="1024" height="1024" style="width: 100%; height: 100%;"></canvas>
+</div>
+<div id="msgContainer"></div>
+</body>
+
+
+<!-- ===[ Laser Shader ]=========================================== -->
+
+
+<!-- ===[ fishNormalMap Shader ]=========================================== -->
+
+
+<!-- ===[ fishReflection Shader ]=========================================== -->
+
+<!-- ===[ Seaweed Shader ]============================================== -->
+
+
+<!-- ===[ Diffuse Map Shader ]============================================== -->
+
+
+<!-- ===[ Normal Map Shader ]============================================== -->
+
+
+<!-- ===[ Reflection Map Shader ]============================================== -->
+
+
+<!-- ===[ Inner Refraction Map Shader ]==================================== -->
+
+
+<!-- ===[ Outer Refraction Map Shader ]==================================== -->
+
+
+</html>
