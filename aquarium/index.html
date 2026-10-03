@@ -546,7 +546,7 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
 <script src="aquarium-config.js"></script>
 <script src="aquarium-common.js"></script>
 <script src="aquarium.js"></script>
-<script src="muse-aquarium.js?v=estimate-startup-1"></script>
+<script src="muse-aquarium.js?v=head-direction-1"></script>
 <script src="signal-check.js?v=4"></script>
 <script src="bci-lab.js?v=8"></script>
 <script src="artifact-explorer.js?v=9"></script>
@@ -704,7 +704,7 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
         <p>Blinking activates all five bubble fountains.</p>
         <p>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</p>
         <p>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</p>
-        <p>Turning your head left zooms in; turning right zooms out. Hold still to keep the new zoom.</p>
+        <p>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</p>
     </div>
   </div>
   <div id="introductionPanel" class="startPanel">
@@ -719,7 +719,7 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
           <li>Blinking activates all five bubble fountains.</li>
           <li>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</li>
           <li>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</li>
-          <li>Turning your head left zooms in; turning right zooms out. Hold still to keep the new zoom.</li>
+          <li>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</li>
         </ul>
       </div>
     </div>
@@ -759,7 +759,7 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
     <div class="introductionSlide" data-slide="3">
       <h2>How Head Movement Works</h2>
       <div class="introductionText">
-        <p>Head movement comes from Muse's motion sensors, separately from EEG. The gyroscope measures rotation speed. A detected left turn narrows the camera's field of view to zoom in; a detected right turn widens it to zoom out.</p>
+        <p>Head movement comes from Muse's motion sensors, separately from EEG. The gyroscope measures rotation speed. A detected left turn widens the camera's field of view to zoom out; a detected right turn narrows it to zoom in.</p>
         <p>The accelerometer estimates head tilt from gravity. ThinkTank uses changes in this estimate to adjust target radius: how far the point the camera looks at lies from the aquarium's center. Detected upward movement increases this radius; downward movement decreases it.</p>
         <p>With the current camera position, increasing target radius makes the view less steeply downward; decreasing it makes the view more steeply downward. The camera stays in place and does not directly copy your head angle. Movement above a threshold gradually changes the view, which settles when you hold still. Both responses are smoothed.</p>
       </div>
@@ -812,7 +812,7 @@ body.tankIntroductionOpen #eegLivePanel { display: none !important; }
     <p>Blink to activate bubbles.</p>
     <p>A higher EEG engagement estimate speeds up the fish.</p>
     <p>Move your head up or down to adjust the camera view.</p>
-    <p>Turn left to zoom in; turn right to zoom out.</p>
+    <p>Turn left to zoom out; turn right to zoom in.</p>
     <p>Switch to Lab to pause tank controls.</p>
   </details>
   <button id="tankIntroductionButton" type="button" disabled>Introduction</button>

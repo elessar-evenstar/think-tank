@@ -2,8 +2,8 @@
  * Muse controls for the aquarium.
  *
  * A Muse connection must begin inside the button click handler because Web
- * Bluetooth requires a user gesture. Turning left narrows the field of view;
- * turning right widens it. The target and displayed values are both smoothed.
+ * Bluetooth requires a user gesture. Turning left widens the field of view;
+ * turning right narrows it. The target and displayed values are both smoothed.
  */
 (function() {
   "use strict";
@@ -48,7 +48,7 @@
     // Muse yaw is the Z gyroscope axis. Change turnSign to -1 if left and
     // right are reversed for the way your headband is worn.
     yawAxis: 2,
-    turnSign: 1,
+    turnSign: -1,
     deadZoneDps: 12,
     fullSpeedDps: 90,
     fovChangePerSecond: 28,
@@ -693,7 +693,7 @@
       setEEGPanelExpanded(false);
       updateEEGDisplay();
       setButtonState("muse connected", false);
-      setStatus("Turn left to zoom in, right to zoom out");
+      setStatus("Turn left to zoom out, right to zoom in");
       // Check signal usability before enabling interactive aquarium controls.
       state.signalChecking = true;
       document.getElementById("exploreModeButton").disabled = true;
@@ -1220,7 +1220,8 @@
       );
       var direction = state.smoothedYawDps < 0 ? -1 : 1;
       state.headTurn = direction < 0 ? "left" : "right";
-      state.targetFieldOfView += direction * turnStrength *
+      // Corrected left is negative yaw: widen FOV for left, narrow it for right.
+      state.targetFieldOfView -= direction * turnStrength *
         HEAD_TURN_CONFIG.fovChangePerSecond * dt * outputBlend;
       state.targetFieldOfView = Math.max(
         HEAD_TURN_CONFIG.minFieldOfView,
