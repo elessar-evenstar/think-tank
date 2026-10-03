@@ -3,7 +3,8 @@
   "use strict";
 
   T.controlBlend = function controlBlend(now) {
-    if (T.state.mode === "lab" || T.state.signalChecking || T.tankIntroductionOpen) return 0;
+    // Tank information panels do not interrupt live Muse controls.
+    if (T.state.mode === "lab" || T.state.signalChecking) return 0;
     if (!T.controlResumeAt) return 1;
     // Ease live control back in over 1.5 seconds after leaving Lab.
     var progress = T.clamp((now - T.controlResumeAt) / 1500, 0, 1);

@@ -7,7 +7,7 @@
     var now = Date.now();
     var elapsed = T.lastFishSpeedUpdateAt ? Math.max(0, Math.min((now - T.lastFishSpeedUpdateAt) / 1000, 0.1)) : 1 / 60;
     T.lastFishSpeedUpdateAt = now;
-    if (T.state.mode === "lab" || T.state.signalChecking || T.tankIntroductionOpen) return;
+    if (T.state.mode === "lab" || T.state.signalChecking) return;
     if (!settings || !settings.globals || !Number.isFinite(settings.globals.speed)) return;
     if (T.state.baseFishSpeed === null) T.state.baseFishSpeed = settings.globals.speed;
     if (T.state.targetFishSpeed === null) T.state.targetFishSpeed = settings.globals.speed;

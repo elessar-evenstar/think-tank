@@ -54,11 +54,12 @@
 <script src="app/processing/blink-detector.js"></script>
 <script src="app/processing/engagement.js"></script>
 <script src="app/processing/motion.js"></script>
-<script src="app/controls/controller.js"></script>
-<script src="app/controls/camera.js"></script>
-<script src="app/controls/animation.js"></script>
-<script src="app/controls/bubbles.js"></script>
-<script src="app/ui/navigation.js"></script>
+<!-- Keep this control update together so cached scripts cannot retain the panel pause. -->
+<script src="app/controls/controller.js?v=tank-panels-live-1"></script>
+<script src="app/controls/camera.js?v=tank-panels-live-1"></script>
+<script src="app/controls/animation.js?v=tank-panels-live-1"></script>
+<script src="app/controls/bubbles.js?v=tank-panels-live-1"></script>
+<script src="app/ui/navigation.js?v=tank-panels-live-1"></script>
 <script src="app/ui/status.js"></script>
 <script src="app/ui/eeg-display.js"></script>
 <script src="app/aquarium/adapter.js"></script>
@@ -217,6 +218,12 @@
       <button id="controlsButton" type="button">Controls</button>
     </div>
   </div>
+  <div id="eegPanel" class="startPanel" style="display: none">
+    <button id="eegBackButton" type="button">Back to Tank</button>
+    <h1>Live EEG</h1>
+    <canvas id="eegGraph" width="640" height="280" role="img"
+      aria-label="Live waveforms for TP9, AF7, AF8, and TP10"></canvas>
+  </div>
   <div id="controlsPanel" class="startPanel">
     <button id="backButton" type="button">back</button>
     <h1>ThinkTank</h1>
@@ -324,21 +331,9 @@
   </div>
   </div>
 </div>
-<div id="eegLivePanel" aria-label="Live EEG waveform display">
-  <button id="eegToggleButton" type="button" aria-expanded="false" aria-controls="eegGraph">
-    <span class="eegLiveTitle">Live EEG</span>
-    <span id="eegToggleIcon" aria-hidden="true">&#9660;</span>
-  </button>
-  <canvas id="eegGraph" width="220" height="120" role="img"
-    aria-label="Live waveforms for TP9, AF7, AF8, and TP10"></canvas>
-  <details id="quickControls">
-    <summary>Controls</summary>
-    <p>Blink to activate bubbles.</p>
-    <p>A higher EEG engagement estimate speeds up the fish.</p>
-    <p>Move your head up or down to adjust the camera view.</p>
-    <p>Turn left to zoom out; turn right to zoom in.</p>
-    <p>Switch to Lab to pause tank controls.</p>
-  </details>
+<div id="eegLivePanel" aria-label="Tank information">
+  <button id="tankEEGButton" type="button" disabled>Live EEG</button>
+  <button id="tankControlsButton" type="button" disabled>Controls</button>
   <button id="tankIntroductionButton" type="button" disabled>Introduction</button>
 </div>
 <div id="uiContainer">

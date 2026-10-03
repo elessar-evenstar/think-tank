@@ -121,7 +121,8 @@ CANVAS {
 #signalCheck { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,0.25); }
 #signalCheck[hidden] { display: none; }
 #signalCheckPanel { width: min(620px, 100%); max-height: calc(100dvh - 40px); display: flex; flex-direction: column; overflow: hidden; padding: 18px; box-sizing: border-box; background: rgba(5,12,22,0.94); color: white; border-radius: 8px; font: 14px/1.4 sans-serif; }
-#signalCheckContent { overflow-y: auto; min-height: 0; }
+#signalCheckContent { overflow-y: auto; min-height: 0; padding-bottom: 2px; flex: 0 1 auto; }
+#signalCheckContent details p { margin: 8px 0; }
 #signalCheckContent > p { margin: 8px 0; }
 #signalProgress { height: 40px; box-sizing: border-box; display: flex; align-items: center; }
 #signalWarning { min-height: 40px; font-size: 12px; }
@@ -337,7 +338,8 @@ CANVAS {
   font-size: 13px;
   cursor: pointer;
 }
-#introductionBackButton {
+#introductionBackButton,
+#eegBackButton {
   position: absolute;
   top: 14px;
   left: 16px;
@@ -351,7 +353,8 @@ CANVAS {
   cursor: pointer;
 }
 #backButton:hover,
-#introductionBackButton:hover {
+#introductionBackButton:hover,
+#eegBackButton:hover {
   color: white;
   background: rgba(255,255,255,0.12);
 }
@@ -420,7 +423,6 @@ body:has(#labScreen:not([hidden])) #museStats { display: none !important; }
   #museStatGrid { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }
   #museStats { padding: 8px; }
   #museStats #museStatus { height: 36px; }
-  #eegLivePanel.expanded { top: 250px; }
 }
 #eegLivePanel {
   display: none;
@@ -437,54 +439,19 @@ body:has(#labScreen:not([hidden])) #museStats { display: none !important; }
   font-size: 11px;
   line-height: 1.35;
 }
-.eegLiveTitle {
-  color: #b8dfff;
-  font-size: 11px;
-  text-align: center;
-}
-#eegToggleButton {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 0;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  font: inherit;
-  cursor: pointer;
-}
-#eegToggleButton:hover .eegLiveTitle,
-#eegToggleButton:focus-visible .eegLiveTitle {
-  color: white;
-}
-#eegToggleIcon {
-  margin-left: 6px;
-  color: white;
-  font-size: 10px;
-}
-#eegLivePanel.expanded, #eegLivePanel:has(#quickControls[open]) {
-  width: 242px;
-}
-#quickControls { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); }
-#quickControls summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: #b8dfff; list-style: none; }
-#quickControls summary::-webkit-details-marker { display: none; }
-#quickControls summary::after { content: "\25BC"; font-size: 10px; }
-#quickControls[open] summary::after { content: "\25B2"; }
-#quickControls summary:focus-visible { outline: 2px solid white; outline-offset: 3px; }
-#quickControls p { margin: 8px 0 0; line-height: 1.4; }
-#tankIntroductionButton { display: block; width: 100%; margin-top: 10px; padding: 6px; border: 1px solid rgba(255,255,255,0.4); border-radius: 4px; background: transparent; color: #b8dfff; font: inherit; cursor: pointer; }
-#tankIntroductionButton:hover { background: rgba(255,255,255,0.12); }
-#tankIntroductionButton:disabled { opacity: 0.45; cursor: default; }
-@media (max-width: 600px) { #eegLivePanel:has(#quickControls[open]) { top: 250px; } }
+#eegLivePanel button { display: block; width: 100%; margin-top: 10px; padding: 6px; border: 1px solid rgba(255,255,255,0.4); border-radius: 4px; background: transparent; color: #b8dfff; font: inherit; cursor: pointer; }
+#eegLivePanel button:first-child { margin-top: 0; }
+#eegLivePanel button:hover { background: rgba(255,255,255,0.12); }
+#eegLivePanel button:disabled { opacity: 0.45; cursor: default; }
+#eegPanel { width: min(720px, 100%); }
+#eegPanel, #controlsPanel { max-height: calc(100dvh - 40px); overflow-y: auto; padding-top: 56px; }
 #eegGraph {
-  display: none;
-  width: 220px;
-  height: 120px;
-  margin-top: 4px;
-}
-#eegLivePanel.expanded #eegGraph {
   display: block;
+  background: rgba(0,0,0,0.25);
+  width: 100%;
+  height: auto;
+  aspect-ratio: 640 / 280;
+  margin-top: 4px;
 }
 #museStatus {
   margin: 3px 0 0;

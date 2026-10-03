@@ -86,10 +86,10 @@
     channelNames: ["TP9", "AF7", "AF8", "TP10"],
     channelColors: ["#8dd3ff", "#a7f3d0", "#ffd27a", "#ff9fb3"],
     pointCount: 180,
-    width: 220,
-    height: 120,
-    labelWidth: 30,
-    rowHeight: 28
+    width: 640,
+    height: 280,
+    labelWidth: 44,
+    rowHeight: 70
   };
 
   // Muse sends 12 samples per packet; counters wrap after 65535.

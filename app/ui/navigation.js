@@ -3,31 +3,36 @@
   "use strict";
 
   T.openTankIntroduction = function openTankIntroduction() {
+    T.openTankPanel("introduction", "tankIntroductionButton", "introductionBackButton");
+  };
+
+  T.openTankPanel = function openTankPanel(panelName, shortcutId, backId) {
     if (!T.state.connected || T.state.signalChecking || T.state.mode !== "explore") return;
+    // Track panel navigation and hide overlapping UI, without pausing Muse controls.
     T.tankIntroductionOpen = true;
+    T.tankPanelShortcut = shortcutId;
     document.body.classList.add("tankIntroductionOpen");
     document.getElementById("exploreModeButton").disabled = true;
     document.getElementById("labModeButton").disabled = true;
     document.getElementById("introductionBackButton").textContent = "Back to Tank";
-    T.showStartPanel("introduction"); T.showIntroductionSlide(0); T.setStartScreenVisible(true);
-    document.getElementById("introductionBackButton").focus();
+    document.getElementById("backButton").textContent = "Back to Tank";
+    T.showStartPanel(panelName); T.showIntroductionSlide(0); T.setStartScreenVisible(true);
+    if (panelName === "eeg") T.updateEEGDisplay();
+    document.getElementById(backId).focus();
   };
 
   T.closeIntroduction = function closeIntroduction() {
-    if (!T.tankIntroductionOpen) { T.showStartPanel("start"); return; }
+    if (!T.tankIntroductionOpen) {
+      document.getElementById("backButton").textContent = "back";
+      T.showStartPanel("start"); return;
+    }
     T.tankIntroductionOpen = false;
     document.body.classList.remove("tankIntroductionOpen");
-    // Resume from the visible view; never apply actions collected while reading.
-    T.state.targetFieldOfView = T.getAquariumFieldOfView();
-    T.state.targetRadius = T.getAquariumTargetRadius();
-    T.state.targetFishSpeed = T.getAquariumFishSpeed();
-    T.state.targetFishTailSpeed = T.getAquariumFishTailSpeed();
-    T.state.bubbles.visibleUntil = 0;
-    T.state.bubbles.fountains.forEach(function(fountain) { fountain.visibleUntil = 0; });
-    T.controlResumeAt = Date.now();
+    // Controls stayed live, so keep their targets and ongoing bubbles unchanged.
     T.setStartScreenVisible(false); T.setMode("explore");
     document.getElementById("introductionBackButton").textContent = "back";
-    document.getElementById("tankIntroductionButton").focus();
+    document.getElementById("backButton").textContent = "back";
+    document.getElementById(T.tankPanelShortcut || "tankIntroductionButton").focus();
   };
 
   T.setStartScreenVisible = function setStartScreenVisible(visible) {
@@ -37,13 +42,15 @@
   };
 
   T.showStartPanel = function showStartPanel(panelName) {
+    document.getElementById("backButton").textContent = T.tankIntroductionOpen ? "Back to Tank" : "back";
     var startPanel = document.getElementById("startPanel");
     var controlsPanel = document.getElementById("controlsPanel");
     var introductionPanel = document.getElementById("introductionPanel");
     if (!startPanel || !controlsPanel || !introductionPanel) return;
     var showingControls = panelName === "controls";
     var showingIntroduction = panelName === "introduction";
-    startPanel.style.display = showingControls || showingIntroduction ? "none" : "block";
+    startPanel.style.display = showingControls || showingIntroduction || panelName === "eeg" ? "none" : "block";
+    document.getElementById("eegPanel").style.display = panelName === "eeg" ? "block" : "none";
     controlsPanel.style.display = showingControls ? "block" : "none";
     introductionPanel.style.display = showingIntroduction ? "block" : "none";
   };
@@ -101,6 +108,9 @@
     if (screen) screen.hidden = T.state.mode !== "lab";
     var introShortcut = document.getElementById("tankIntroductionButton");
     if (introShortcut) introShortcut.disabled = !T.state.connected || T.state.mode !== "explore";
+    ["tankControlsButton", "tankEEGButton"].forEach(function(id) {
+      document.getElementById(id).disabled = !T.state.connected || T.state.mode !== "explore";
+    });
     if (modeChanged) document.dispatchEvent(new CustomEvent("musemodechange", { detail: T.state.mode }));
   };
 

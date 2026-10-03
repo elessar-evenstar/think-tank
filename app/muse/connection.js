@@ -64,7 +64,6 @@
     T.setStartScreenVisible(true);
     T.setMuseStatsVisible(false);
     T.setEEGPanelVisible(false);
-    T.setEEGPanelExpanded(false);
     T.updateEEGDisplay();
     T.setButtonState("Connect Muse", false);
     T.setStatus("Muse disconnected");
@@ -132,7 +131,6 @@
       T.setStartScreenVisible(false);
       T.setMuseStatsVisible(true);
       T.setEEGPanelVisible(true);
-      T.setEEGPanelExpanded(false);
       T.updateEEGDisplay();
       T.setButtonState("muse connected", false);
       T.setStatus("Turn left to zoom out, right to zoom in");

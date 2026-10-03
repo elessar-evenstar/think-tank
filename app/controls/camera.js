@@ -55,7 +55,7 @@
       }
 
       // Keep the displayed stats frozen in Lab while sensor processing continues.
-      if (T.state.connected && T.state.mode === "explore" && !T.tankIntroductionOpen) {
+      if (T.state.connected && T.state.mode === "explore") {
         T.updateStats(now);
       }
     }

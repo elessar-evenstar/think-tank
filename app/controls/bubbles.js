@@ -7,7 +7,7 @@
   };
 
   T.updateBubbles = function updateBubbles(now, dt) {
-    if (T.state.mode === "lab" || T.state.signalChecking || T.tankIntroductionOpen) return;
+    if (T.state.mode === "lab" || T.state.signalChecking) return;
     dt *= T.controlBlend(now);
     var opacities = [];
     var maxOpacity = 0;
@@ -33,7 +33,7 @@
 
   T.respondToBlink = function(now, shouldStartBubbles) {
       // Keep detection active in Lab, without changing fountain state or emitters.
-      if (T.state.mode === "lab" || T.state.signalChecking || T.tankIntroductionOpen) {
+      if (T.state.mode === "lab" || T.state.signalChecking) {
         return;
       }
       T.state.bubbles.visibleUntil = 0;

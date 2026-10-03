@@ -8,17 +8,6 @@
     panel.style.display = visible ? "block" : "none";
   };
 
-  T.setEEGPanelExpanded = function setEEGPanelExpanded(expanded) {
-    var panel = document.getElementById("eegLivePanel");
-    var toggle = document.getElementById("eegToggleButton");
-    var icon = document.getElementById("eegToggleIcon");
-    if (!panel || !toggle || !icon) return;
-
-    panel.classList.toggle("expanded", expanded);
-    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-    icon.textContent = expanded ? "\u25B2" : "\u25BC";
-  };
-
   T.updateEEGDisplay = function updateEEGDisplay() {
     var canvas = document.getElementById("eegGraph");
     if (!canvas) return;
@@ -70,7 +59,7 @@
       context.stroke();
 
       context.fillStyle = T.EEG_DISPLAY_CONFIG.channelColors[channel];
-      context.font = "10px sans-serif";
+      context.font = "14px sans-serif";
       context.fillText(T.EEG_DISPLAY_CONFIG.channelNames[channel], 2, centerY + 3);
 
       if (pointCount < 2) continue;

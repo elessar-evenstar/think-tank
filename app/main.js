@@ -23,16 +23,17 @@
         T.showStartPanel("controls");
       });
     }
-    var eegToggleButton = document.getElementById("eegToggleButton");
-    if (eegToggleButton) {
-      eegToggleButton.addEventListener("click", function() {
-        T.setEEGPanelExpanded(eegToggleButton.getAttribute("aria-expanded") !== "true");
-      });
-    }
+    document.getElementById("tankEEGButton").addEventListener("click", function() {
+      T.openTankPanel("eeg", "tankEEGButton", "eegBackButton");
+    });
+    document.getElementById("tankControlsButton").addEventListener("click", function() {
+      T.openTankPanel("controls", "tankControlsButton", "backButton");
+    });
+    document.getElementById("eegBackButton").addEventListener("click", T.closeIntroduction);
     var backButton = document.getElementById("backButton");
     if (backButton) {
       backButton.addEventListener("click", function() {
-        T.showStartPanel("start");
+        T.closeIntroduction();
       });
     }
     var introductionButton = document.getElementById("introductionButton");
