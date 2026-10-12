@@ -27,21 +27,20 @@
       (T.stdFromEnd(tp9, T.BLINK_CONFIG.baselinePoints, T.BLINK_CONFIG.recentPoints) +
        T.stdFromEnd(tp10, T.BLINK_CONFIG.baselinePoints, T.BLINK_CONFIG.recentPoints)) / 2);
     var score = commonDip / noise;
-    var tpMostNegative = Math.min(tp9RecentMin, tp10RecentMin);
-    var hardBlink = tpMostNegative <= T.BLINK_CONFIG.tpHardBlinkValue;
+    // A blink must pass the shared-dip checks; an extreme single channel is not enough.
     var dipBlink = commonDip >= T.BLINK_CONFIG.minCommonDip &&
       tp9Dip >= T.BLINK_CONFIG.minChannelDip &&
       tp10Dip >= T.BLINK_CONFIG.minChannelDip &&
       score >= T.BLINK_CONFIG.minScore &&
       disagreement <= Math.max(14, commonDip * T.BLINK_CONFIG.maxDisagreementRatio);
-    var enterThreshold = hardBlink || dipBlink;
+    var enterThreshold = dipBlink;
     var stayAbove = T.state.blink.aboveThreshold &&
-      (hardBlink || (commonDip >= T.BLINK_CONFIG.releaseCommonDip &&
-        score >= T.BLINK_CONFIG.releaseScore));
+      commonDip >= T.BLINK_CONFIG.releaseCommonDip &&
+      score >= T.BLINK_CONFIG.releaseScore;
     var aboveThreshold = enterThreshold || stayAbove;
 
     T.state.blink.score = Number.isFinite(score) ? score : 0;
-    T.state.blink.mode = hardBlink ? "tp-hard" : (dipBlink ? "tp-dip" : "idle");
+    T.state.blink.mode = dipBlink ? "tp-dip" : "idle";
 
     if (enterThreshold && !T.state.blink.aboveThreshold &&
         now - T.state.blink.lastDetectedAt >= T.BLINK_CONFIG.cooldownMs) {

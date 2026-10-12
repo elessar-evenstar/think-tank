@@ -9,7 +9,6 @@
     minScore: 2.8,
     maxDisagreementRatio: 0.95,
     minChannelDip: 35,
-    tpHardBlinkValue: -400,
     cooldownMs: 520,
     releaseCommonDip: 28,
     releaseScore: 1.2

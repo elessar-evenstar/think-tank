@@ -46,12 +46,12 @@
 <script src="app/aquarium/extensions.js"></script>
 <script src="vendor/aquarium/aquarium.js"></script>
 <script src="app/muse/protocol.js"></script>
-<script src="app/config.js"></script>
+<script src="app/config.js?v=shared-blink-1"></script>
 <script src="app/state.js"></script>
 <script src="app/muse/eeg-buffer.js"></script>
 <script src="app/muse/connection.js"></script>
 <script src="app/processing/signal-math.js"></script>
-<script src="app/processing/blink-detector.js"></script>
+<script src="app/processing/blink-detector.js?v=shared-blink-1"></script>
 <script src="app/processing/engagement.js"></script>
 <script src="app/processing/motion.js"></script>
 <!-- Keep this control update together so cached scripts cannot retain the panel pause. -->
@@ -271,7 +271,7 @@
       <h2>How Blink Detection Works</h2>
       <div class="introductionText">
         <p>ThinkTank looks for short downward deflections in TP9 and TP10 to detect blinks. These are eye-related artifacts mixed into the EEG recording, rather than a neural measure of engagement. Other artifacts can sometimes trigger the detector too.</p>
-        <p>To look for the downward spike, the algorithm compares the newest 14 measurements with the 96 measurements immediately before them. It detects a blink when both channels fall at least 35 signal units below their recent baseline, their average drop is at least 70 units, and the drop is at least 2.8 times larger than the normal background noise. A very large spike reaching -400 units in either channel also counts.</p>
+        <p>To look for the downward spike, the algorithm compares the newest 14 measurements with the 96 measurements immediately before them. It detects a blink when both channels fall at least 35 signal units below their recent baseline, their average drop is at least 70 units, and the drop is at least 2.8 times larger than the normal background noise. The two drops must also be similar enough to pass the channel-agreement check; a large spike in just one channel does not count.</p>
         <p>After a blink is detected, the five bubble fountains in the aquarium fade in together. A short cooldown prevents one blink from being counted several times.</p>
       </div>
     </div>
