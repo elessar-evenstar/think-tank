@@ -1,4 +1,3 @@
-/* ThinkTank: processing/signal-math.js. See docs/architecture.md for the shared T interface. */
 (function(T) {
   "use strict";
 
