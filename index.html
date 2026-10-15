@@ -34,7 +34,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 <title>ThinkTank — Muse BCI Aquarium</title>
-<link href="app/ui/thinktank.css" rel="stylesheet">
+<link href="app/ui/thinktank.css?v=compact-stats-1" rel="stylesheet">
 <link href="vendor/jquery-ui-1.8.2.custom/css/ui-lightness/jquery-ui-1.8.2.custom.css" rel="stylesheet" />
 <script src="vendor/jquery-ui-1.8.2.custom/js/jquery-1.4.2.min.js"></script>
 <script src="vendor/jquery-ui-1.8.2.custom/js/jquery-ui-1.8.2.custom.min.js"></script>
@@ -46,7 +46,7 @@
 <script src="app/aquarium/extensions.js"></script>
 <script src="vendor/aquarium/aquarium.js"></script>
 <script src="app/muse/protocol.js"></script>
-<script src="app/config.js?v=shared-blink-1"></script>
+<script src="app/config.js?v=fish-speed-range-1"></script>
 <script src="app/state.js"></script>
 <script src="app/muse/eeg-buffer.js"></script>
 <script src="app/muse/connection.js"></script>
@@ -57,10 +57,10 @@
 <!-- Keep this control update together so cached scripts cannot retain the panel pause. -->
 <script src="app/controls/controller.js?v=tank-panels-live-1"></script>
 <script src="app/controls/camera.js?v=tank-panels-live-1"></script>
-<script src="app/controls/animation.js?v=tank-panels-live-1"></script>
+<script src="app/controls/animation.js?v=fish-speed-2"></script>
 <script src="app/controls/bubbles.js?v=tank-panels-live-1"></script>
 <script src="app/ui/navigation.js?v=tank-panels-live-1"></script>
-<script src="app/ui/status.js"></script>
+<script src="app/ui/status.js?v=blink-bubbles-1"></script>
 <script src="app/ui/eeg-display.js"></script>
 <script src="app/aquarium/adapter.js"></script>
 <script src="app/ui/signal-check.js"></script>
@@ -152,9 +152,14 @@
     <div id="frequencyExercise" hidden>
       <h2 id="exerciseTitle"></h2>
       <p id="exerciseDescription"></p>
-      <p id="exerciseScore" aria-label="EEG engagement estimate"></p>
+      <p id="exerciseScale" hidden>EEG engagement estimate &middot; 0&ndash;100</p>
+      <p id="exerciseScore" aria-label="EEG engagement estimate on a zero to one hundred scale"></p>
       <p id="exerciseStatus" role="status"></p>
       <canvas id="exerciseCanvas" hidden role="img" aria-label="EEG engagement estimate over fifteen seconds, on a fixed zero to one hundred scale"></canvas>
+      <div id="exerciseLegend" hidden>
+        <span id="exerciseFocusLegend" class="exerciseTrace focusTrace">Focused-attention instruction</span>
+        <span id="exerciseRestLegend" class="exerciseTrace restTrace">Quiet-rest instruction</span>
+      </div>
       <p id="exerciseSummary"></p>
       <div class="labActions">
         <button id="exerciseBack" type="button">Back</button>
@@ -230,7 +235,7 @@
     <h2>Controls</h2>
     <div class="controlInstructions">
         <p>Blinking activates all five bubble fountains.</p>
-        <p>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</p>
+        <p>EEG signals influence fish speed. Watch the number and try different ways of focusing. Fish speed runs from 0 (slowest) to 100 (fastest); the fish still move at 0.</p>
         <p>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</p>
         <p>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</p>
     </div>
@@ -245,7 +250,7 @@
         <h3>Controls</h3>
         <ul>
           <li>Blinking activates all five bubble fountains.</li>
-          <li>A higher EEG engagement estimate makes the fish swim faster. Its 0-100 scale is a control score, not percent focus.</li>
+          <li>EEG signals influence fish speed. Its 0-100 display follows the applied speed, from slowest to fastest. Try different ways of focusing and watch what happens.</li>
           <li>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</li>
           <li>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</li>
         </ul>
@@ -281,7 +286,7 @@
         <p>ThinkTank calculates its EEG engagement estimate from AF7 and AF8, examining about two seconds of data from each channel separately. It calculates each channel's theta, alpha, and beta power, then averages the matching band powers. This preserves activity even when one channel's wave peaks as the other dips.</p>
         <p>EEG contains fluctuations at different frequencies, measured in hertz (Hz), or cycles per second. The algorithm measures power, or signal strength, in theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). These bands can relate to several brain processes; none uniquely measures attention or relaxation.</p>
         <p>It calculates <strong>beta power / (alpha power + theta power)</strong>, then maps ratios from 0.2 to 2.6 onto a 0-100 scale. Larger relative beta power raises the score. Large signal amplitudes, detected blinks, or head movement pause the estimate at its last valid value until a clean two-second window is available. The stats show the reason for the pause; smoothing makes valid changes gradual.</p>
-        <p>A score of 70 does not mean 70% focused. This experimental EEG engagement estimate controls fish speed; it is not a validated measure of attention. Eye and muscle activity or poor electrode contact can still affect it despite the adjustments.</p>
+        <p>Lab shows this experimental EEG engagement estimate on a 0-100 scale. A score of 70 does not mean 70% focused. Tank shows the resulting fish speed on its own 0-100 scale, from the slowest to fastest configured speed. That number follows the applied speed as it gradually changes or returns to normal when EEG is unavailable. Eye and muscle activity or poor electrode contact can still affect the EEG feature despite the signal checks.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="3">
@@ -301,16 +306,18 @@
 </div>
 <div id="museStats" class="fpsContainer">
   <div id="museStatGrid">
-    <div id="blinkIndicator" role="img" aria-label="Blink detector idle" title="Flashes when a blink is detected">
+    <div id="blinkIndicator" role="img" aria-label="Blink to create bubbles; detector idle" title="Blink to create bubbles. Flashes when a blink is detected.">
       <svg viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <g class="eyeOpen"><path d="M2 10Q12 -3 22 10Q12 23 2 10Z"/><circle cx="12" cy="10" r="3"/></g>
         <path class="eyeClosed" d="M2 9Q12 19 22 9M6 12L4 16M12 14V18M18 12L20 16"/>
       </svg>
       <span>Blink</span>
+      <span class="blinkArrow" aria-hidden="true">&darr;</span>
+      <span>Bubbles</span>
     </div>
-    <div id="engagementIndicator">
-      <div class="engagementHeading"><span>EEG engagement estimate</span><b id="statEngagement">--</b></div>
-      <div id="engagementTrack" role="meter" aria-label="EEG engagement estimate" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Collecting EEG"><span id="engagementFill"></span></div>
+    <div id="fishSpeedIndicator">
+      <div class="fishSpeedHeading"><span>Fish speed</span><b id="statFishSpeed">--</b></div>
+      <div id="fishSpeedTrack" role="meter" aria-label="Fish speed" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Waiting for aquarium speed" title="0 = slowest configured speed; 100 = fastest configured speed"><span id="fishSpeedFill"></span></div>
     </div>
     <div id="batteryIndicator" class="unknown" title="Muse battery level">
       <span class="batteryIcon" aria-hidden="true"><span id="batteryFill"></span></span>

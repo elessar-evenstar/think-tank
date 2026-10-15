@@ -18,33 +18,31 @@
   function intro() {
     stop(); phase = "intro";
     el("exerciseStatus").classList.remove("countdown");
-    el("exerciseTitle").textContent = stage ? "Exercise 2: Relaxed Rest" : "Exercise 1: Focused Attention";
+    el("exerciseTitle").textContent = stage ? "Exercise 2: Quiet Rest" : "Exercise 1: Focused Attention";
     el("exerciseDescription").textContent = stage ?
-      "Sit comfortably and let your attention wander, without trying to change the number. You can keep a soft, unfocused gaze or close your eyes, whichever feels more natural. Start plays a sound check. After a three-second countdown, the next tone begins fifteen seconds of rest; the final tone ends the exercise. A tone also sounds if interrupted." :
-      "For fifteen seconds, keep your attention on the displayed engagement estimate. You can try to bring it up through steady attention, without tensing your jaw or face. There is no target to reach and no guaranteed increase. Blink naturally when needed.";
-    el("exerciseSummary").textContent = "This is an estimate, not an exact measurement. Relaxed rest does not guarantee a lower estimate. Changes can reflect eye state, artifacts, and the estimate's smoothing. Make sure you can hear the cues before choosing to close your eyes.";
+      "For fifteen seconds, keep your eyes open and let your attention wander. The number will remain visible, but you do not need to follow or change it. Keep your face relaxed and blink naturally." :
+      "For fifteen seconds, keep your eyes open, watch the number, and try to increase it through steady attention. Keep your face relaxed and blink naturally. There is no target to reach and no guaranteed increase.";
+    el("exerciseSummary").textContent = "Explore how the EEG estimate changes during these two activities. Either recording may be higher, lower, or similar. The 0-100 scale is experimental, not percent focus. Start begins a three-second countdown; on-screen cues and optional tones mark the recording.";
     el("exerciseScore").textContent = ""; el("exerciseStatus").textContent = "";
+    el("exerciseScale").hidden = true; el("exerciseLegend").hidden = true;
     el("exerciseCanvas").hidden = true; el("exerciseAgain").hidden = true;
     el("exerciseNext").hidden = false; el("exerciseNext").textContent = "Start";
   }
   async function begin() {
     var muse = window.museAquarium;
     if (!muse.state.connected || muse.state.mode !== "lab") return;
-    // Audio is unlocked by this button click, before the visitor closes their eyes.
+    // Audio is unlocked by the Start click; eyes stay open and visual cues always work.
     try {
       var Audio = window.AudioContext || window.webkitAudioContext;
       if (!audioContext && Audio) audioContext = new Audio();
       if (audioContext) await audioContext.resume();
-    } catch (error) { /* The on-screen message below handles unavailable audio. */ }
+    } catch (error) { /* The on-screen countdown works without audio. */ }
     if (!active || phase !== "intro") return;
-    if (stage && (!audioContext || audioContext.state !== "running")) {
-      el("exerciseStatus").textContent = "Audio is unavailable. Enable sound before starting the rest exercise."; return;
-    }
     tone();
     phase = "countdown"; began = performance.now() + 3000; samples = [];
     el("exerciseStatus").classList.add("countdown");
     el("exerciseNext").hidden = true;
-    el("exerciseSummary").textContent = stage ? "Sound check: keep your eyes open until the next tone. If you cannot hear the sound, press Back." : "Keep your face relaxed. The estimate may rise, fall, or stay similar.";
+    el("exerciseSummary").textContent = stage ? "Keep your eyes open and let your attention wander. You do not need to follow or change the number." : "Keep your eyes open and your face relaxed. Watch the number and try to increase it through steady attention.";
     window.frequencyLabActive = true;
     frame = requestAnimationFrame(tick);
   }
@@ -54,31 +52,33 @@
     results[stage] = samples.slice();
     el("exerciseStatus").textContent = message;
     el("exerciseScore").textContent = "";
+    el("exerciseScale").hidden = false;
     el("exerciseCanvas").hidden = false;
     el("exerciseAgain").hidden = false; el("exerciseNext").hidden = false;
     el("exerciseNext").textContent = stage ? "Finish" : "Next";
     var summary = samples.length >= 2 ? "First accepted estimate: " + samples[0].value.toFixed(0) +
       ". Last: " + samples[samples.length - 1].value.toFixed(0) + ". Change: " +
-      (samples[samples.length - 1].value - samples[0].value).toFixed(1) + " points." : "Not enough accepted updates to describe a change. You can run this exercise again.";
+      (Math.round(samples[samples.length - 1].value) - Math.round(samples[0].value)) + " points." : "Not enough accepted updates to describe a change. You can run this exercise again.";
     el("exerciseSummary").textContent = summary + " " + samples.length + " accepted updates. Gaps are periods without accepted estimates, not zero engagement. " +
-      (stage ? "The blue line is your saved engagement estimate during focused attention; the green line is your estimate during relaxed rest. Both start at zero seconds for comparison, although the exercises happened separately. Left to right shows elapsed time; height shows the smoothed 0-100 estimate, not percent focus. Neither condition guarantees a higher or lower line." : "The blue line shows how your engagement estimate changed during focused attention. Left to right shows elapsed time; height shows the smoothed 0-100 estimate, not percent focus.");
+      (stage ? "Compare how the EEG index changed during each activity. The solid blue line records the focused-attention instruction; the dashed green line records the quiet-rest instruction. Both start at zero seconds for comparison, although the exercises happened separately. Either recording may be higher, lower, or similar. These are prompted activities, not independently measured attention states." : "The solid blue line records the focused-attention instruction. Left to right shows elapsed time; height shows the smoothed 0-100 estimate, not percent focus. Next, try quiet rest with the same display.");
     draw();
   }
   function tick(now) {
     if (!active || (phase !== "countdown" && phase !== "recording")) return;
     var muse = window.museAquarium;
-    if (!muse.state.connected || muse.state.mode !== "lab") { finish("Interrupted." + (stage ? " If your eyes are closed, open them when ready." : "")); return; }
+    if (!muse.state.connected || muse.state.mode !== "lab") { finish("Interrupted."); return; }
     if (phase === "countdown") {
       el("exerciseStatus").textContent = "Get ready: " + Math.max(1, Math.ceil((began - now) / 1000));
       if (now >= began) {
         began = now; phase = "recording"; tone(); el("exerciseCanvas").hidden = false;
+        el("exerciseScale").hidden = false;
         el("exerciseStatus").classList.remove("countdown");
       }
     }
     if (phase === "recording") {
-      if (now - began >= durationMs) { finish("Fifteen seconds complete." + (stage ? " If your eyes are closed, open them when ready." : " You can relax your attention now.")); return; }
+      if (now - began >= durationMs) { finish("Fifteen seconds complete." + (stage ? " Compare your recordings below." : " You can relax your attention now.")); return; }
       var focus = muse.state.focus;
-      var valid = focus.signalQuality === "good" && Date.now() - focus.lastComputedAt < 1500;
+      var valid = focus.signalQuality === "good" && Number.isFinite(focus.index) && Date.now() - focus.lastComputedAt < 1500;
       el("exerciseScore").textContent = valid ? focus.index.toFixed(0) : "--";
       el("exerciseStatus").textContent = Math.ceil((durationMs - now + began) / 1000) + " seconds remaining" +
         (valid ? "" : " | Waiting for valid EEG; no estimate recorded");
@@ -91,11 +91,27 @@
     canvas.width = Math.round(width * dpr); canvas.height = Math.round(180 * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, width, 180);
     ctx.font = "12px sans-serif"; ctx.fillStyle = "white";
-    [0, 50, 100].forEach(function(value) { ctx.fillText(String(value), 2, 154 - value * 1.3); });
+    // Fixed whole-number ticks keep both activities directly comparable; no auto-zoom.
+    [0, 20, 40, 60, 80, 100].forEach(function(value) {
+      var y = 150 - value * 1.3;
+      ctx.fillText(String(value), 2, y + 4);
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.beginPath(); ctx.moveTo(32, y); ctx.lineTo(width - 10, y); ctx.stroke();
+    });
     ctx.fillText("0s", 32, 175); ctx.fillText(durationMs / 1000 + "s", width - 30, 175);
     var traces = stage && phase === "result" ? [results[0] || [], samples] : [samples];
+    el("exerciseLegend").hidden = false;
+    el("exerciseFocusLegend").hidden = !!stage && phase !== "result";
+    el("exerciseRestLegend").hidden = !stage;
+    canvas.setAttribute("aria-label", (stage && phase === "result" ?
+      "Focused-attention and quiet-rest instruction recordings" : stage ?
+      "Quiet-rest instruction recording" : "Focused-attention instruction recording") +
+      "; elapsed time from 0 to 15 seconds; experimental EEG engagement estimate from 0 to 100. Gaps mean no accepted estimate.");
     traces.forEach(function(trace, index) {
-      ctx.strokeStyle = traces.length === 2 && index === 0 ? "#8dd3ff" : stage ? "#a5efb3" : "#8dd3ff";
+      var restTrace = stage && (traces.length === 1 || index === 1);
+      ctx.strokeStyle = restTrace ? "#a5efb3" : "#8dd3ff";
+      ctx.setLineDash(restTrace ? [6, 4] : []);
+      ctx.lineWidth = 2;
       ctx.beginPath();
       trace.forEach(function(point, i) {
         var x = 32 + point.time / durationMs * (width - 42), y = 150 - point.value * 1.3;
@@ -104,6 +120,7 @@
       });
       ctx.stroke();
     });
+    ctx.setLineDash([]);
   }
   document.addEventListener("musefrequency", function() {
     if (!active || phase !== "recording") return;
@@ -113,7 +130,7 @@
     }
   });
   document.addEventListener("visibilitychange", function() {
-    if (document.hidden && active && (phase === "recording" || phase === "countdown")) finish("Interrupted: page hidden." + (stage ? " If your eyes are closed, open them when ready." : ""));
+    if (document.hidden && active && (phase === "recording" || phase === "countdown")) finish("Interrupted: page hidden.");
   });
   document.addEventListener("musemodechange", function() { if (active && (phase === "recording" || phase === "countdown")) tone(); stop(); active = false; });
   window.addEventListener("resize", function() { if (active && (phase === "recording" || phase === "result")) draw(); });

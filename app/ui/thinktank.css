@@ -114,6 +114,12 @@ CANVAS {
 #frequencyExercise { min-height: 100%; display: flex; flex-direction: column; }
 #frequencyExercise .labActions { justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: auto; padding-top: 16px; }
 #exerciseScore { font-size: 36px; text-align: center; min-height: 54px; margin: 8px 0; }
+#exerciseScale { text-align: center; margin: 4px 0 0; color: #c9e3ec; font-size: 13px; }
+#exerciseCanvas { display: block; width: 100%; height: 180px; flex-shrink: 0; }
+#exerciseLegend { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 8px 0 16px; font-size: 12px; }
+.exerciseTrace { display: inline-flex; align-items: center; gap: 6px; }
+.exerciseTrace::before { content: ""; width: 24px; border-top: 2px solid #8dd3ff; }
+.restTrace::before { border-top: 2px dashed #a5efb3; }
 #exerciseStatus { text-align: center; min-height: 24px; }
 #exerciseDescription, #exerciseSummary { margin: 0 0 16px; }
 #exerciseScore:empty, #exerciseStatus:empty { display: none; }
@@ -393,25 +399,28 @@ CANVAS {
   width: min(460px, calc(100% - 32px));
   font: 12px/1.5 sans-serif;
   font-variant-numeric: tabular-nums;
+  padding: 8px;
 }
 body.tankIntroductionOpen #museStats,
 body.tankIntroductionOpen #modeToggle,
 body.tankIntroductionOpen #eegLivePanel { display: none !important; }
 body:has(#labScreen:not([hidden])) #museStats { display: none !important; }
-#museStatGrid { display: grid; grid-template-columns: 44px minmax(0, 1fr) 66px; gap: 16px; align-items: center; }
-#blinkIndicator { color: #c9e3ec; display: grid; justify-items: center; gap: 2px; }
+#museStatGrid { display: grid; grid-template-columns: 66px minmax(0, 1fr) 66px; gap: 16px; align-items: center; }
+#blinkIndicator { color: #c9e3ec; display: grid; justify-items: center; gap: 1px; }
+#blinkIndicator span { white-space: nowrap; }
+#blinkIndicator .blinkArrow { line-height: 1; }
 #blinkIndicator svg { width: 40px; height: 32px; }
 #blinkIndicator .eyeClosed { display: none; }
 #blinkIndicator.detected { color: #ff6464; }
 #blinkIndicator.detected .eyeOpen { display: none; }
 #blinkIndicator.detected .eyeClosed { display: block; }
-#engagementIndicator { min-width: 0; }
-#museStats #museStatus { height: 36px; }
-.engagementHeading { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-#statEngagement { flex: 0 0 3ch; text-align: right; }
-#engagementTrack { height: 8px; margin-top: 4px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
-#engagementFill { display: block; height: 100%; width: 0; background: #60a5fa; transition: width 200ms linear, background-color 350ms ease, filter 350ms ease; }
-#engagementIndicator.held #engagementFill { filter: saturate(0.3) brightness(0.85); }
+#fishSpeedIndicator { min-width: 0; }
+#museStats #museStatus { height: auto; min-height: 18px; margin-top: 0; }
+.fishSpeedHeading { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+#statFishSpeed { flex: 0 0 3ch; text-align: right; }
+#fishSpeedTrack { height: 8px; margin-top: 4px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+#fishSpeedFill { display: block; height: 100%; width: 0; background: #60a5fa; transition: width 200ms linear, background-color 350ms ease, filter 350ms ease; }
+#fishSpeedIndicator.held #fishSpeedFill { filter: grayscale(1) brightness(0.85); }
 #batteryIndicator { display: grid; justify-items: center; gap: 4px; }
 .batteryIcon { position: relative; width: 26px; height: 12px; border: 1px solid currentColor; padding: 2px; box-sizing: border-box; border-radius: 2px; }
 .batteryIcon::after { content: ""; position: absolute; right: -4px; top: 3px; width: 2px; height: 4px; background: currentColor; }
@@ -422,7 +431,6 @@ body:has(#labScreen:not([hidden])) #museStats { display: none !important; }
 @media (max-width: 600px) {
   #museStatGrid { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }
   #museStats { padding: 8px; }
-  #museStats #museStatus { height: 36px; }
 }
 #eegLivePanel {
   display: none;

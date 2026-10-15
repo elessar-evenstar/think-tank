@@ -74,9 +74,10 @@
   T.FISH_SPEED_CONFIG = {
     holdMs: 3000,
     baselineReturnSeconds: 1.5,
-    // Restore a broad response, with a lower peak than the original 2.5x speed.
-    minMultiplier: 0.45,
-    maxMultiplier: 2.1,
+    // Make low EEG scores visibly slower, with a modest increase at the fast end.
+    // The speed meter uses these same endpoints for its 0-100 display.
+    minMultiplier: 0.15,
+    maxMultiplier: 2.4,
     smoothAmount: 0.1
   };
 

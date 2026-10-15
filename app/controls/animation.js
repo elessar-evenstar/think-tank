@@ -1,6 +1,18 @@
 (function(T) {
   "use strict";
 
+  T.getFishSpeedLevel = function getFishSpeedLevel() {
+    var settings = T.aquariumSettings();
+    var baseSpeed = T.state.baseFishSpeed;
+    if (!settings || !settings.globals || !Number.isFinite(settings.globals.speed) ||
+        !Number.isFinite(baseSpeed) || baseSpeed <= 0) return null;
+    // Display the applied swimming speed, including smoothing and return to baseline.
+    // Zero and 100 mean the configured slowest and fastest speeds, not stopped/normal.
+    var multiplier = settings.globals.speed / baseSpeed;
+    return 100 * T.clamp((multiplier - T.FISH_SPEED_CONFIG.minMultiplier) /
+      (T.FISH_SPEED_CONFIG.maxMultiplier - T.FISH_SPEED_CONFIG.minMultiplier), 0, 1);
+  };
+
   T.updateFishSpeed = function updateFishSpeed() {
     var settings = T.aquariumSettings();
     var now = Date.now();
