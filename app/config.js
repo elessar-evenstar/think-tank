@@ -15,11 +15,12 @@
 
   T.BUBBLE_CONFIG = {
     fountainCount: 5,
-    fadeInMs: 700,
-    minVisibleMs: 1800,
-    maxVisibleMs: 4200,
-    minFadeOutMs: 900,
-    maxFadeOutMs: 2400
+    // Blink-triggered fountains fade in quickly, then fade out independently.
+    fadeInMs: 500,
+    minVisibleMs: 2000,
+    maxVisibleMs: 3000,
+    minFadeOutMs: 1000,
+    maxFadeOutMs: 2500
   };
 
   T.HEAD_TURN_CONFIG = {
