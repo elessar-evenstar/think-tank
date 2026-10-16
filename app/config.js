@@ -77,8 +77,8 @@
     baselineReturnSeconds: 1.5,
     // Make low EEG scores visibly slower, with a modest increase at the fast end.
     // The speed meter uses these same endpoints for its 0-100 display.
-    minMultiplier: 0.15,
-    maxMultiplier: 2.4,
+    minMultiplier: 0.01,
+    maxMultiplier: 4.5,
     smoothAmount: 0.1
   };
 
