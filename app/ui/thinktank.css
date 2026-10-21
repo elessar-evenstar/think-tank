@@ -79,13 +79,13 @@ CANVAS {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 12px 20px;
   box-sizing: border-box;
 }
 #labScreen[hidden] { display: none; }
 #labPanel {
   width: min(720px, 100%);
-  height: min(420px, 100%);
+  height: 100%;
   background: rgba(5,12,22,0.85);
   border: 1px solid rgba(190,225,245,0.25);
   border-radius: 8px;
@@ -162,8 +162,10 @@ CANVAS {
 #artifactStatus:empty, #artifactNote:empty { display: none; }
 @media (max-width: 600px) { .artifactGraphs { grid-template-columns: 1fr; } }
 .labActions { display: flex; justify-content: flex-end; margin-top: 24px; }
-.labMenuOptions { flex-direction: column; gap: 32px; max-width: 300px; margin: 32px auto; }
-#labMenu h2 { text-align: center; }
+.labMenuOptions { flex-direction: column; gap: 16px; width: min(300px, 100%); margin: 0 auto; }
+#labMenu { min-height: 100%; display: flex; flex-direction: column; justify-content: center; }
+#labPanel #labMenu h2 { font-size: 32px; margin: 0 0 12px; text-align: center; }
+#labMenu p { max-width: 440px; margin: 0 auto 28px; text-align: center; }
 #labIntro { min-height: 100%; display: flex; flex-direction: column; }
 #labIntro .labActions { justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 24px; }
 #labResults { min-height: 100%; display: flex; flex-direction: column; }
@@ -518,3 +520,17 @@ body:has(#labScreen:not([hidden])) #museStats { display: none !important; }
   z-index: 100;
   color: white;
 }
+
+/* Center short Lab pages as a group; longer pages grow and scroll from the top. */
+#labPanel > div:not(#labMenu):not([hidden]) {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+#labPanel > div > * { flex-shrink: 0; }
+#labPanel > div:not(#labMenu) > .labActions {
+  margin-top: 24px;
+  padding-top: 0;
+}
+#labPanel p { line-height: 1.6; }

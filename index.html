@@ -34,7 +34,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 <title>ThinkTank — Muse BCI Aquarium</title>
-<link href="app/ui/thinktank.css?v=compact-stats-1" rel="stylesheet">
+<link href="app/ui/thinktank.css?v=lab-menu-3" rel="stylesheet">
 <link href="vendor/jquery-ui-1.8.2.custom/css/ui-lightness/jquery-ui-1.8.2.custom.css" rel="stylesheet" />
 <script src="vendor/jquery-ui-1.8.2.custom/js/jquery-1.4.2.min.js"></script>
 <script src="vendor/jquery-ui-1.8.2.custom/js/jquery-ui-1.8.2.custom.min.js"></script>
@@ -66,9 +66,9 @@
 <script src="app/ui/signal-check.js"></script>
 <script src="app/labs/lab-navigation.js"></script>
 <script src="app/labs/blink-explorer.js"></script>
-<script src="app/labs/artifact-explorer.js"></script>
-<script src="app/labs/frequency-explorer.js"></script>
-<script src="app/labs/frequency-exercise.js"></script>
+<script src="app/labs/artifact-explorer.js?v=lab-reading-2"></script>
+<script src="app/labs/frequency-explorer.js?v=lab-reading-2"></script>
+<script src="app/labs/frequency-exercise.js?v=lab-reading-2"></script>
 <script src="app/main.js"></script>
 </head>
 <body>
@@ -107,6 +107,7 @@
   <section id="labPanel" aria-label="BCI Lab">
     <div id="labMenu">
       <h2>BCI Lab</h2>
+      <p>Try guided activities to see how blinks, movement, and EEG frequency patterns appear in your Muse recordings.</p>
       <div class="labActions labMenuOptions">
         <button id="labBlinkOption" type="button">Blink Explorer</button>
         <button id="labArtifactOption" type="button">Artifact Explorer</button>
@@ -115,8 +116,8 @@
     </div>
     <div id="labIntro" hidden>
       <h2>Lab 1: Blink Explorer</h2>
-      <p>This short session tests how often ThinkTank detects a blink in response to each of ten prompts. Watch your live TP9 and TP10 signals for brief downward spikes, which may be caused by blinks. At the end, you will see how many prompted trials had a detection, how many did not, and how many extra or unprompted detections occurred.</p>
-      <p>Sit comfortably and blink once when the word Blink grows and turns white, about every 2.6 seconds. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink; red is detection feedback.</p>
+      <p>In this activity, you will blink in response to ten prompts while watching the recordings from TP9 and TP10. A blink can produce a brief downward spike in these signals, which ThinkTank tries to detect. Your results will show which prompts were followed by a detection, which were not, and whether the detector responded at other times.</p>
+      <p>Sit comfortably and blink once when the word Blink grows and turns white. The word flashes red whenever the software detects a blink, including unexpected detections. White is your cue to blink and red is detection feedback.</p>
       <p>Eye and head movements can also trigger detections. Keep your gaze near the center of the screen and limit head movement to minimize false detections.</p>
       <p>You can return to Tank at any time to end the session.</p>
       <div class="labActions">
@@ -143,7 +144,7 @@
       <p id="labResultStatus"></p>
       <p id="labResultCounts"></p>
       <p>A prompted trial counts as detected when a detection occurs within 1.6 seconds of the cue. Extra detections and detections outside that window count as unexpected.</p>
-      <p>These results compare detections with prompts, not independently verified blinks. Natural blinks can also appear as unexpected detections.</p>
+      <p>These counts show how closely the detector responses followed the prompts. They cannot confirm whether you actually blinked each time, and a natural blink between prompts may be counted as unexpected.</p>
       <div class="labActions">
         <button id="labAgain" type="button">Run Again</button>
         <button id="labReturnMenu" type="button">Return To Menu</button>
@@ -179,7 +180,7 @@
       </div>
       <p id="frequencyNote"></p>
       <details id="frequencyDetails" hidden><summary>Calculation details</summary>
-        <p>Each accepted window contains 512 samples (about two seconds) from AF7 and AF8. Each channel is mean-centered and Hann-windowed before calculating frequency power. Matching powers are then averaged across channels. Values use the existing algorithm's squared-voltage normalization, not a calibrated power spectral density. The display smooths updates; the vertical range is fixed after the first accepted window. Values beyond that range are clipped and reported.</p>
+        <p>Each accepted window contains 512 samples (about two seconds) from AF7 and AF8. Each channel is mean-centered and Hann-windowed before calculating frequency power. Matching powers are then averaged across channels. Values use the existing algorithm's squared-voltage normalization. The display smooths updates; the vertical range is fixed after the first accepted window. Values beyond that range are clipped and reported.</p>
       </details>
       <div class="labActions"><button id="frequencyBack" type="button">Back</button><button id="frequencyNext" type="button">Next</button></div>
     </div>
@@ -235,9 +236,9 @@
     <h2>Controls</h2>
     <div class="controlInstructions">
         <p>Blinking activates all five bubble fountains.</p>
-        <p>EEG signals influence fish speed. Watch the number and try different ways of focusing. Fish speed runs from 0 (slowest) to 100 (fastest); the fish still move at 0.</p>
-        <p>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</p>
-        <p>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</p>
+        <p>Watch the Fish speed number as you try maintaining your attention on the aquarium. Higher EEG engagment estimate corresponds with a higher speed. The scale runs from 0 (slowest) to 100 (fastest), and the fish still move at 0.</p>
+        <p>Move your head gently up or down to adjust the camera view, then hold still when you reach a view you like.</p>
+        <p>Turn your head left to zoom out or right to zoom in; the zoom settles when you hold still.</p>
     </div>
   </div>
   <div id="introductionPanel" class="startPanel">
@@ -246,55 +247,50 @@
     <div class="introductionSlide active" data-slide="0">
       <h2>What is ThinkTank?</h2>
       <div class="introductionText">
-        <p>ThinkTank is an interactive aquarium controlled by a Muse 2 headband. It uses EEG frequency features for an EEG engagement estimate, blink artifacts in the electrode recordings to detect blinks, and separate motion sensors to track head movement.</p>
+        <p>ThinkTank connects a Muse 2 headband to an interactive aquarium, giving you a way to see its signals affect something on screen. Blink-related electrical changes trigger bubbles, an estimate calculated from EEG frequency bands influences fish speed, and the headband's motion sensors let you adjust the view.</p>
         <h3>Controls</h3>
         <ul>
           <li>Blinking activates all five bubble fountains.</li>
-          <li>EEG signals influence fish speed. Its 0-100 display follows the applied speed, from slowest to fastest. Try different ways of focusing and watch what happens.</li>
-          <li>Moving your head up or down gradually adjusts where the camera looks. Hold still to keep the new view.</li>
-          <li>Turning your head left zooms out; turning right zooms in. Hold still to keep the new zoom.</li>
+          <li>The EEG engagement estimate influences fish speed. Watch the 0-100 speed display as you try maintaining your attention on the aquarium; the number shows how fast the fish are moving within their configured range.</li>
+          <li>Move your head gently up or down to adjust the camera view, then hold still when you reach a view you like.</li>
+          <li>Turn your head left to zoom out or right to zoom in; the zoom settles when you hold still.</li>
         </ul>
       </div>
     </div>
     <div class="introductionSlide" data-slide="modes">
       <h2>Tank and Lab</h2>
       <div class="introductionText">
-        <p><strong>Tank</strong> connects your Muse signals to the aquarium: blinks activate bubbles, the EEG engagement estimate changes fish speed, and head movements adjust the view.</p>
-        <p><strong>Lab</strong> keeps receiving and processing signals while holding the aquarium controls and stats at their current settings. The aquarium keeps animating. Switch back to Tank at any time to gradually resume live control without reconnecting.</p>
-        <p><strong>Blink Explorer</strong> compares ten prompted blinks with detector responses and shows the TP9 and TP10 signals. <strong>Artifact Explorer</strong> compares saved still and head-movement recordings so you can explore movement artifacts at your own pace.</p>
+        <p><strong>Tank</strong> turns your Muse signals into aquarium controls: blinks activate bubbles, the EEG engagement estimate influences fish speed, and head movements adjust the view.</p>
+        <p><strong>Lab</strong> lets you look more closely at blink detection, movement artifacts, and EEG frequency bands through three guided activities. The fish keep swimming while sensor-driven controls are paused; switch back to Tank whenever you want to resume.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="science">
       <h2>The Science Behind It</h2>
       <div class="introductionText">
-        <p>Neurons communicate through electrical and chemical signals. Incoming signals open ion channels, changing the voltage across a neuron's membrane. Excitatory inputs can make the inside less negative; an action potential occurs only if the neuron reaches its firing threshold.</p>
-        <p>Scalp EEG mainly reflects the combined currents associated with incoming signals, called postsynaptic potentials, in many similarly oriented cortical neurons active together. It does not directly count individual action potentials. These currents produce tiny voltage differences that reach the scalp.</p>
-        <p>Electrodes are conductive sensors. Muse measures voltage at AF7 and AF8 on the forehead and TP9 and TP10 behind the ears relative to a reference electrode. It amplifies these small signals and converts them into digital samples. The recordings also contain eye, muscle, movement, and contact artifacts.</p>
+        <p>EEG records tiny voltage differences at the scalp that reflect the combined electrical activity of many brain cells. Muse uses electrodes on your forehead and behind your ears to record these signals and send them to ThinkTank.</p>
+        <p>The recordings also pick up electrical activity from your eyes and muscles, along with changes caused by movement or headset contact. ThinkTank uses some of these signals as inputs and checks for others that could interfere with its EEG estimate.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="1">
       <h2>How Blink Detection Works</h2>
       <div class="introductionText">
-        <p>ThinkTank looks for short downward deflections in TP9 and TP10 to detect blinks. These are eye-related artifacts mixed into the EEG recording, rather than a neural measure of engagement. Other artifacts can sometimes trigger the detector too.</p>
-        <p>To look for the downward spike, the algorithm compares the newest 14 measurements with the 96 measurements immediately before them. It detects a blink when both channels fall at least 35 signal units below their recent baseline, their average drop is at least 70 units, and the drop is at least 2.8 times larger than the normal background noise. The two drops must also be similar enough to pass the channel-agreement check; a large spike in just one channel does not count.</p>
-        <p>After a blink is detected, the five bubble fountains in the aquarium fade in together. A short cooldown prevents one blink from being counted several times.</p>
+        <p>A blink can produce a brief downward spike in the recordings behind your ears. ThinkTank looks for a matching change in both channels and compares it with recent background activity to decide whether to count a blink.</p>
+        <p>A detection activates all five bubble fountains, with a short cooldown to avoid counting the same event repeatedly. Other movements can sometimes trigger the detector too; Blink Explorer lets you see how it responds.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="2">
       <h2>EEG Engagement Estimate</h2>
       <div class="introductionText">
-        <p>ThinkTank calculates its EEG engagement estimate from AF7 and AF8, examining about two seconds of data from each channel separately. It calculates each channel's theta, alpha, and beta power, then averages the matching band powers. This preserves activity even when one channel's wave peaks as the other dips.</p>
-        <p>EEG contains fluctuations at different frequencies, measured in hertz (Hz), or cycles per second. The algorithm measures power, or signal strength, in theta (4-7 Hz), alpha (8-12 Hz), and beta (13-30 Hz). These bands can relate to several brain processes; none uniquely measures attention or relaxation.</p>
-        <p>It calculates <strong>beta power / (alpha power + theta power)</strong>, then maps ratios from 0.2 to 2.6 onto a 0-100 scale. Larger relative beta power raises the score. Large signal amplitudes, detected blinks, or head movement pause the estimate at its last valid value until a clean two-second window is available. The stats show the reason for the pause; smoothing makes valid changes gradual.</p>
-        <p>Lab shows this experimental EEG engagement estimate on a 0-100 scale. A score of 70 does not mean 70% focused. Tank shows the resulting fish speed on its own 0-100 scale, from the slowest to fastest configured speed. That number follows the applied speed as it gradually changes or returns to normal when EEG is unavailable. Eye and muscle activity or poor electrode contact can still affect the EEG feature despite the signal checks.</p>
+        <p>ThinkTank compares the strength of theta, alpha, and beta frequency bands in the forehead recordings to calculate an experimental EEG engagement estimate. The estimate changes gradually and influences how fast the fish swim.</p>
+        <p>Lab shows the estimate on a 0–100 scale, but this is not a percentage of attention. Tank instead displays <strong>Fish speed</strong>, from the slowest to the fastest configured speed.</p>
+        <p>Blinks, muscle activity, and poor headset contact can affect the recording. When usable EEG is unavailable, updates pause and the fish eventually return to their normal speed. Frequency Explorer lets you examine the signals behind the estimate.</p>
       </div>
     </div>
     <div class="introductionSlide" data-slide="3">
       <h2>How Head Movement Works</h2>
       <div class="introductionText">
-        <p>Head movement comes from Muse's motion sensors, separately from EEG. The gyroscope measures rotation speed. A detected left turn widens the camera's field of view to zoom out; a detected right turn narrows it to zoom in.</p>
-        <p>The accelerometer estimates head tilt from gravity. ThinkTank uses changes in this estimate to adjust target radius: how far the point the camera looks at lies from the aquarium's center. Detected upward movement increases this radius; downward movement decreases it.</p>
-        <p>With the current camera position, increasing target radius makes the view less steeply downward; decreasing it makes the view more steeply downward. The camera stays in place and does not directly copy your head angle. Movement above a threshold gradually changes the view, which settles when you hold still. Both responses are smoothed.</p>
+        <p>Muse tracks head movement with motion sensors, separately from EEG. Turning left zooms out and turning right zooms in, while moving your head up or down changes where the camera looks.</p>
+        <p>These movements adjust the view gradually rather than copying your head angle directly. Hold still when you reach a view you like, and the camera will settle there.</p>
       </div>
     </div>
     <div class="introductionNavigation">

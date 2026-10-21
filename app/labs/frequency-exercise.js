@@ -20,8 +20,8 @@
     el("exerciseStatus").classList.remove("countdown");
     el("exerciseTitle").textContent = stage ? "Exercise 2: Quiet Rest" : "Exercise 1: Focused Attention";
     el("exerciseDescription").textContent = stage ?
-      "For fifteen seconds, keep your eyes open and let your attention wander. The number will remain visible, but you do not need to follow or change it. Keep your face relaxed and blink naturally." :
-      "For fifteen seconds, keep your eyes open, watch the number, and try to increase it through steady attention. Keep your face relaxed and blink naturally. There is no target to reach and no guaranteed increase.";
+      "During this fifteen-second recording, keep your eyes open and let your attention wander. The number will still be visible, but you do not need to follow it or try to change it. Let your face relax and blink whenever you need to." :
+      "During this fifteen-second recording, watch the number and try to increase it by maintaining your attention on it. Keep your eyes open and your face relaxed, and blink whenever you need to. The estimate may rise, fall, or stay similar; there is no target you need to reach.";
     el("exerciseSummary").textContent = "Explore how the EEG estimate changes during these two activities. Either recording may be higher, lower, or similar. The 0-100 scale is experimental, not percent focus. Start begins a three-second countdown; on-screen cues and optional tones mark the recording.";
     el("exerciseScore").textContent = ""; el("exerciseStatus").textContent = "";
     el("exerciseScale").hidden = true; el("exerciseLegend").hidden = true;

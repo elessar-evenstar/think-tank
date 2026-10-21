@@ -31,8 +31,8 @@
   }
   function introduction() {
     phase = "intro";
-    screen("Lab 2: Artifact Explorer", "See how jaw clenching and head movements can change the signals recorded by your Muse. First, record four seconds while sitting still. This is your baseline: a starting point for comparison. Then try a brief, gentle jaw clench and four gentle head movements, recording four seconds for each action. Compare each recording with that same baseline.");
-    el("artifactNote").textContent = "Signals appear live while recording, and you can review them afterward. You do not need to watch while turning your head. The aquarium controls stay frozen in Lab. You can return to Tank at any time. Recordings stay in this page's memory and are not uploaded.";
+    screen("Lab 2: Artifact Explorer", "The electrodes in your Muse pick up more than brain activity: jaw muscles and head movements can also change the recording. You will first record four seconds while sitting still, then make a separate recording for a gentle jaw clench and each of four head movements. Comparing these with the still recording will help you see how those actions affect the signals.");
+    el("artifactNote").textContent = "You can watch the signals as they arrive or review them afterward, so there is no need to keep looking at the screen while turning your head. Recordings stay in this page's memory and are not uploaded. You can leave the activity at any time by returning to Tank.";
   }
   function guide() {
     phase = "guide";
@@ -41,7 +41,7 @@
     el("artifactMovementFigure").hidden = false;
     el("artifactMovementLabel").textContent = "During movement (example)";
     el("artifactStatus").textContent = "Illustrative example, not recorded Muse data";
-    el("artifactNote").textContent = "These made-up waves demonstrate the display, not an expected response. Your recordings may look different.";
+    el("artifactNote").textContent = "These example waves show how to read the display. They were created for illustration, so your own recordings may look different.";
     el("artifactGuide").hidden = false;
     el("artifactTechnical").hidden = false;
     // Synthetic examples stay separate from saved Muse recordings and scoring.

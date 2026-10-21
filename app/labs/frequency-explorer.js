@@ -17,8 +17,8 @@
     el("frequencyNext").textContent = page === 3 ? "Try the Exercises" : "Next";
     if (page === 0) {
       el("frequencyTitle").textContent = "Lab 3: Frequency Explorer";
-      el("frequencyDescription").textContent = "EEG contains a mixture of slower and faster electrical fluctuations. Explore these rhythms in your Muse recordings and see how they contribute to ThinkTank's engagement estimate. This is an estimate, not an exact measurement of engagement.";
-      el("frequencyNote").textContent = "First learn how to read frequency, then watch the live signals from AF7 and AF8 near your forehead. The aquarium controls remain frozen in Lab. Sit comfortably with your eyes open and your face relaxed.";
+      el("frequencyDescription").textContent = "Your Muse recording contains electrical fluctuations at many frequencies. This activity shows how ThinkTank separates those frequencies into bands and uses their relative power to calculate its experimental engagement estimate.";
+      el("frequencyNote").textContent = "You will start with an example of slow and fast waves before looking at live recordings from AF7 and AF8 on your forehead. For the live recording, sit comfortably with your eyes open and your face relaxed; your signals will continue updating while the aquarium controls are paused.";
     } else if (page === 1) {
       el("frequencyTitle").textContent = "From Waves to Frequencies";
       el("frequencyDescription").textContent = "Frequency is how often a wave repeats each second, measured in hertz (Hz). The examples below show a slower wave and a faster wave over the same one second.";
@@ -27,7 +27,7 @@
       draw();
     } else if (page === 2) {
       el("frequencyTitle").textContent = "Live Frequency Spectrum";
-      el("frequencyDescription").textContent = "AF7 and AF8 power, averaged after calculating each channel separately. The shaded rectangles mark theta (blue, 4-7 Hz), alpha (green, 8-12 Hz), and beta (yellow, 13-30 Hz). They show frequency ranges; their height does not represent power.";
+      el("frequencyDescription").textContent = "This graph combines the power calculated separately from AF7 and AF8. The shaded rectangles mark theta (blue, 4-7 Hz), alpha (green, 8-12 Hz), and beta (yellow, 13-30 Hz). They show frequency ranges; their height does not represent power.";
       el("frequencyNote").textContent = "Waiting for an accepted EEG window. Values are relative power units, not percentages.";
       shown = null; updatedAt = 0;
       names.forEach(function(name) { el("frequency" + name).value = 0; el("frequency" + name + "Value").textContent = "--"; });
@@ -37,7 +37,7 @@
     } else {
       el("frequencyTitle").textContent = "How This Connects to the Aquarium";
       el("frequencyDescription").textContent = "ThinkTank combines these band powers using beta / (alpha + theta). Lab shows the resulting smoothed EEG engagement estimate from 0 to 100. Tank uses it to control the fish and displays their applied speed from 0 (slowest) to 100 (fastest).";
-      el("frequencyNote").textContent = "This is an experimental engagement estimate, not an exact measurement or a percentage of engagement. Eye, muscle, and movement signals can affect it. Frequency Explorer uses the same signal checks and holds its last accepted result when a window is rejected.";
+      el("frequencyNote").textContent = "The estimate is an experimental control signal rather than a measured percentage of engagement. Eye movements, muscle activity, and headset movement can influence it, so ThinkTank checks each analysis window before accepting an update. If a window is rejected, the spectrum holds its last accepted result.";
     }
   }
   function draw() {
