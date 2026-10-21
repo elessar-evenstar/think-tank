@@ -103,8 +103,10 @@ About every 600 ms, ThinkTank attempts to analyze a 512-sample window (about two
 The corresponding powers from AF7 and AF8 are averaged after each channel is analyzed, so signals with opposite phase do not cancel before frequency analysis. The experimental control feature is:
 
 ```text
-R = beta power / (alpha power + theta power + small constant)
+R = beta power / (alpha power + theta power)
 ```
+
+**Engagement-index reference:** The beta/(alpha + theta) ratio follows the EEG operator-engagement index evaluated by Pope, Bogart, and Bartolome (1995): [*Biocybernetic system evaluates indices of operator engagement in automated task*](https://doi.org/10.1016/0301-0511(95)05116-3), *Biological Psychology*, 40(1–2), 187–195. 
 
 The ratio is clamped to 0.2–2.6 and mapped linearly onto a 0–100 control score:
 
