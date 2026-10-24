@@ -223,6 +223,15 @@ CANVAS {
   font-size: 36px;
   font-weight: normal;
 }
+#startPanel h1 {
+  margin-bottom: 12px;
+}
+.startIntroduction {
+  margin: 0 0 28px;
+  color: #c9e3ec;
+  font-size: 15px;
+  line-height: 1.5;
+}
 #controlsPanel {
   display: none;
   text-align: left;
