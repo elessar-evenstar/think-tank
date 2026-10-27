@@ -51,9 +51,9 @@ ThinkTank-specific software and adapted Muse acquisition code are primarily in `
 
 ![System Architecture](images/system_architecture.png)
 
-### Source Architecture
+### Source Code Structure
 
-![Source Architecture](images/source_architecture.png)
+![Source Code Structure](images/source_architecture.png)
 
 ThinkTank is a static web application. Its JavaScript modules share state and functions through `window.ThinkTank`. 
 
