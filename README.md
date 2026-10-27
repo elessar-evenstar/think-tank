@@ -1,6 +1,6 @@
 # ThinkTank
 
-**ThinkTank is a browser-based, Muse 2–controlled aquarium that I built to explore how noisy signals from a consumer EEG headset can become real-time computer inputs.** It combines EEG acquisition and processing, head-motion sensing, live signal displays, and interactive controls. The aquarium connects this experiment with my longstanding interest in the ocean and makes the output of the algorithms immediately visible.
+**ThinkTank is a browser-based brain-computer interface (BCI) I built to explore how data from a consumer-grade Muse 2 EEG headset can be processed into real-time controls for a virtual aquarium.** It combines EEG acquisition and processing, head-motion sensing, live signal displays, and interactive controls. The aquarium connects this experiment with my longstanding interest in the ocean and makes the output of the algorithms immediately visible.
 
 ![App Screenshot](images/app_screenshot.png)
 
